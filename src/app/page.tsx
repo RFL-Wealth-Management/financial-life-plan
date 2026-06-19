@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogoutButton } from "@/components/LogoutButton";
 
 export default function Home() {
   const router = useRouter();
@@ -47,6 +48,9 @@ export default function Home() {
     <main className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
         <div className="mb-8 text-center">
+          <div className="flex justify-end mb-4">
+            <LogoutButton />
+          </div>
           <h1 className="text-2xl font-heading font-bold text-foreground">
             Financial Life Plan
           </h1>
