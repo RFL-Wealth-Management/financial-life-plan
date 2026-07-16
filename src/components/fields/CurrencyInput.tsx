@@ -55,10 +55,12 @@ export function CurrencyInput({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
       if (isFocused) {
-        setDisplayValue(raw.replace(/[^0-9]/g, ""));
+        const digitsOnly = raw.replace(/[^0-9]/g, "");
+        setDisplayValue(digitsOnly);
+        onChange(parseRawToNumber(digitsOnly));
       }
     },
-    [isFocused]
+    [isFocused, onChange]
   );
 
   return (
