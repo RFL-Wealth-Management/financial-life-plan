@@ -71,6 +71,6 @@ export async function changeRole(
     return { error: "Could not update that user's role." };
   }
 
-  revalidatePath("/admin");
+  revalidatePath("/users");
   return {};
 }

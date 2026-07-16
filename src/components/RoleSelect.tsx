@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { changeRole } from "./actions";
+import { changeRole } from "@/app/actions/roles";
 import type { UserRole } from "@/lib/types";
 
 export function RoleSelect({

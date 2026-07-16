@@ -1,9 +1,10 @@
-import { getProfile } from "@/lib/auth";
-import { PlanForm } from "@/components/PlanForm";
+import { redirect } from "next/navigation";
 
-export default async function Home() {
-  const profile = await getProfile();
-
-  // Only decides whether the Admin link is rendered. /admin gates itself.
-  return <PlanForm isAdmin={profile?.role === "admin"} />;
+/**
+ * The generator used to live here; it is now /reports/new and the dashboard is
+ * the landing page. Kept as a redirect so existing links and bookmarks still
+ * arrive somewhere sensible.
+ */
+export default function RootPage() {
+  redirect("/dashboard");
 }
