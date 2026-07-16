@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogoutButton } from "@/components/LogoutButton";
 
-export function PlanForm({ isAdmin }: { isAdmin: boolean }) {
+export function PlanForm() {
   const router = useRouter();
   const [client1FirstName, setClient1FirstName] = useState("");
   const [client1LastName, setClient1LastName] = useState("");
@@ -49,17 +47,6 @@ export function PlanForm({ isAdmin }: { isAdmin: boolean }) {
     <main className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
         <div className="mb-8 text-center">
-          <div className="flex justify-end items-center gap-4 mb-4">
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="text-xs text-foreground/50 hover:text-foreground/80 transition-colors"
-              >
-                Admin
-              </Link>
-            )}
-            <LogoutButton />
-          </div>
           <h1 className="text-2xl font-heading font-bold text-foreground">
             Financial Life Plan
           </h1>
