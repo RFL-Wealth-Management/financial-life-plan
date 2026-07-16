@@ -1,3 +1,20 @@
+export type UserRole = "admin" | "user";
+
+export interface Profile {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+export interface DocumentRecord {
+  id: string;
+  ownerId: string;
+  client1Name: string;
+  client2Name: string | null;
+  createdAt: string;
+}
+
 export interface Client {
   firstName: string;
   lastName: string;

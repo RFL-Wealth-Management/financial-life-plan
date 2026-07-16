@@ -14,7 +14,7 @@ const ibmPlexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "FFLP Generator",
+  title: "Financial Life Planner",
   description: "Financial Life Plan document generator",
 };
 
