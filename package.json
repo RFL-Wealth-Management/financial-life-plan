@@ -8,7 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "supabase": "npx --yes supabase@2.109.1",
+    "db:login": "npm run supabase -- login",
+    "db:link": "npm run supabase -- link",
+    "db:push": "npm run supabase -- db push",
+    "db:status": "npm run supabase -- migration list --linked",
+    "db:new": "npm run supabase -- migration new",
+    "db:types": "npm run supabase -- gen types typescript --linked --schema public > src/lib/database.types.ts",
+    "functions:new": "npm run supabase -- functions new",
+    "functions:serve": "npm run supabase -- functions serve",
+    "functions:deploy": "npm run supabase -- functions deploy"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
