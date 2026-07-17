@@ -51,7 +51,7 @@ export interface Corporation {
 export interface PlanMetadata {
   month: string;
   year: number;
-  priorities: string;
+  priorities: string[];
   successRetirementIncome: string;
   successPassiveIncome: string;
   successLiquidCapital: string;
