@@ -31,16 +31,16 @@ export function TagInput({
     onChange(value.filter((v) => v !== tag));
   }
 
-  // TODO: decide what clicking an option does. See the notes in the PR/chat —
-  // this shapes ordering in the generated document, so it is not just UI.
-  //
-  //   - Already-selected option clicked again: toggle it off, or ignore?
-  //   - Order of `value`: click order, or canonical `options` order?
-  //   - Guard against duplicates.
-  //
-  // Called by the option buttons below. Must call onChange with the next array.
+  // Clicking an option toggles it, and the result is kept in the canonical
+  // `options` order so the generated document reads the same regardless of the
+  // order the planner clicked. (Change here if you want click-order instead.)
   function addTag(tag: string) {
-    throw new Error("addTag not implemented");
+    const next = value.includes(tag)
+      ? value.filter((v) => v !== tag)
+      : [...value, tag];
+    onChange(
+      options.map((o) => o.value).filter((v) => next.includes(v))
+    );
   }
 
   return (
