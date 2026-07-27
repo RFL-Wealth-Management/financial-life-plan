@@ -18,11 +18,17 @@ export interface IflpClient {
   age: number | null;
 }
 
+export interface IflpChild {
+  firstName: string;
+  age: number | null;
+}
+
 export interface IflpFormState {
   planMonth: string;
   planYear: number;
   client1: IflpClient;
   client2: IflpClient;
+  children: IflpChild[];
   corporationName: string;
   householdIncome: number | null;
   priorities: string[];
@@ -30,11 +36,14 @@ export interface IflpFormState {
 
 export const emptyClient: IflpClient = { firstName: "", lastName: "", age: null };
 
+export const emptyChild: IflpChild = { firstName: "", age: null };
+
 export const initialIflpFormState: IflpFormState = {
   planMonth: "",
   planYear: new Date().getFullYear(),
   client1: { ...emptyClient },
   client2: { ...emptyClient },
+  children: [],
   corporationName: "",
   householdIncome: null,
   priorities: [],
@@ -77,6 +86,7 @@ export interface IflpDocPayload {
   client1Age: string;
   householdIncome: string;
   priorities: string;
+  children: string;
 }
 
 function fullName(c: IflpClient): string {
@@ -85,6 +95,20 @@ function fullName(c: IflpClient): string {
 
 function hasClient(c: IflpClient): boolean {
   return Boolean(c.firstName.trim() || c.lastName.trim());
+}
+
+// Renders children as "Emma (10), Liam (7)" for the {children} tag. Kids with
+// no name are skipped; a named child with no age falls back to just the name.
+// No children -> "".
+function formatChildren(children: IflpChild[]): string {
+  return children
+    .map((c) => {
+      const name = c.firstName.trim();
+      if (!name) return "";
+      return c.age == null ? name : `${name} (${c.age})`;
+    })
+    .filter(Boolean)
+    .join(", ");
 }
 
 // "$285,000" from 285000. Null -> "".
@@ -118,5 +142,6 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
     client1Age: c1.age == null ? "" : String(c1.age),
     householdIncome: formatCurrency(state.householdIncome),
     priorities: state.priorities.join(", "),
+    children: formatChildren(state.children),
   };
 }

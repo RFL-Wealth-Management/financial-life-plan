@@ -12,6 +12,8 @@ import { priorityOptions } from "@/lib/field-options";
 import {
   IFLP_STEPS,
   initialIflpFormState,
+  emptyChild,
+  type IflpChild,
   type IflpClient,
   type IflpFormState,
 } from "@/lib/iflp-form";
@@ -31,6 +33,21 @@ export function IflpWizard() {
   }
   function patchClient(key: "client1" | "client2", update: Partial<IflpClient>) {
     setState((s) => ({ ...s, [key]: { ...s[key], ...update } }));
+  }
+  function addChild() {
+    setState((s) => ({ ...s, children: [...s.children, { ...emptyChild }] }));
+  }
+  function updateChild(index: number, update: Partial<IflpChild>) {
+    setState((s) => ({
+      ...s,
+      children: s.children.map((c, i) => (i === index ? { ...c, ...update } : c)),
+    }));
+  }
+  function removeChild(index: number) {
+    setState((s) => ({
+      ...s,
+      children: s.children.filter((_, i) => i !== index),
+    }));
   }
 
   async function handleGenerate() {
@@ -67,21 +84,12 @@ export function IflpWizard() {
     <main className="flex-1 p-6">
       <div className="mx-auto w-full max-w-2xl">
         {/* Progress */}
-        <ol className="mb-8 flex items-center gap-2">
+        <ol className="mb-8 flex items-stretch gap-2">
           {IFLP_STEPS.map((s, i) => {
             const done = i < stepIndex;
             const active = i === stepIndex;
             return (
               <li key={s.id} className="flex flex-1 flex-col gap-1.5">
-                <div
-                  className={`h-1.5 rounded-full transition-colors ${
-                    active
-                      ? "bg-accent"
-                      : done
-                        ? "bg-accent/50"
-                        : "bg-foreground/15"
-                  }`}
-                />
                 <button
                   type="button"
                   onClick={() => setStepIndex(i)}
@@ -93,6 +101,15 @@ export function IflpWizard() {
                 >
                   {s.title}
                 </button>
+                <div
+                  className={`mt-auto h-1.5 rounded-full transition-colors ${
+                    active
+                      ? "bg-accent"
+                      : done
+                        ? "bg-accent/50"
+                        : "bg-foreground/15"
+                  }`}
+                />
               </li>
             );
           })}
@@ -115,6 +132,9 @@ export function IflpWizard() {
               state={state}
               patch={patch}
               patchClient={patchClient}
+              addChild={addChild}
+              updateChild={updateChild}
+              removeChild={removeChild}
             />
           ) : (
             <div className="rounded-lg border border-dashed border-foreground/20 bg-foreground/[0.02] px-4 py-10 text-center text-sm text-foreground/45">
@@ -169,10 +189,16 @@ function PeopleStep({
   state,
   patch,
   patchClient,
+  addChild,
+  updateChild,
+  removeChild,
 }: {
   state: IflpFormState;
   patch: (u: Partial<IflpFormState>) => void;
   patchClient: (k: "client1" | "client2", u: Partial<IflpClient>) => void;
+  addChild: () => void;
+  updateChild: (index: number, u: Partial<IflpChild>) => void;
+  removeChild: (index: number) => void;
 }) {
   return (
     <>
@@ -235,6 +261,53 @@ function PeopleStep({
           value={state.client2.age}
           onChange={(age) => patchClient("client2", { age })}
         />
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-semibold text-foreground">
+          Children <span className="font-normal text-foreground/50">(optional)</span>
+        </legend>
+
+        {state.children.length === 0 ? (
+          <p className="text-sm text-foreground/50">No children added yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {state.children.map((child, i) => (
+              <div key={i} className="flex items-end gap-3">
+                <div className="grid flex-1 grid-cols-2 gap-3">
+                  <TextInput
+                    id={`child-${i}-first`}
+                    label="First name"
+                    value={child.firstName}
+                    onChange={(firstName) => updateChild(i, { firstName })}
+                  />
+                  <NumberInput
+                    id={`child-${i}-age`}
+                    label="Age"
+                    value={child.age}
+                    onChange={(age) => updateChild(i, { age })}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeChild(i)}
+                  aria-label={`Remove child ${i + 1}`}
+                  className="mb-1 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={addChild}
+          className="rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
+        >
+          + Add child
+        </button>
       </fieldset>
 
       <fieldset className="space-y-3">
