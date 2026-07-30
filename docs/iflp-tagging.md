@@ -45,14 +45,38 @@ wizard step feeds the payload, or it will simply come out empty (harmless).
 | `Client 1` (cover name) | `{client1Name}` | client1Name |
 | `Client 2` (cover name) | `{client2Name}` | client2Name |
 | `Dear Client 1, Client 2 & family,` | `{welcomeGreeting}` | welcomeGreeting (computed) |
-| `Client & Client` (Profile) | `{coverClients}` | coverClients (computed) |
+| `Client & Client` (Profile, Family row) | `{coverClients}` | coverClients (computed) |
 | `MPC` (Profile) | `{corporationName}` | corporationName |
-| `Age 00` (Profile) | `Age {client1Age}` | client1Age |
 | `$00,000` (Profile) | `{householdIncome}` | householdIncome |
 | `Retirement, Tax Efficiency, …` (Profile) | `{priorities}` | priorities |
+| `Client and Client are …` (intro sentence) | `{clientsClause} in a strong …` | clientsClause (computed) |
+| `Family` goal table (Priorities) | wrap the table in `{#hasChildren} … {/hasChildren}`; value cell `Fully fund {childrenNames} post-secondary education` | hasChildren, childrenNames (computed) |
 
-These nine are already tagged in the committed `iflp.tagged.docx`. Everything
-else is still highlighted.
+These are already tagged in the committed `iflp.tagged.docx`. Everything else is
+still highlighted.
+
+**Notes on recent fixes**
+
+- **Retirement Goal row** (Profile). Its value cell previously read `Age {client1Age}`,
+  which rendered the client's *current* age against a "Retirement Goal" label. That
+  was wrong, so the value cell is now intentionally **blank** — it's the placeholder
+  for a future target-retirement-age field, which the Goals wizard step will collect.
+  `client1Age` is therefore not currently referenced by the template (the payload
+  still provides it, harmlessly).
+- **`{clientsClause}`** carries the subject **and** verb of the intro sentence so it
+  agrees with the client count: `Dan and Sam are` (two clients) or `Dan is` (one).
+  The template owns the rest of the sentence, so keep the leading `{clientsClause}`
+  followed by ` in a strong financial position …`.
+- **Family education goal.** The whole single-row table is wrapped in a
+  `{#hasChildren}` section (open/close tags live in the empty spacer paragraphs that
+  bracket the table), so it drops out entirely when the plan has no children.
+  `{childrenNames}` renders the possessive list, e.g. `Emma and Liam’s`.
+
+Still-highlighted `Client` / `Client 1` / `Client 2` placeholders remain throughout
+the later financial tables (retirement buckets, accounts, insurance, transfers, …).
+Those belong to wizard steps 2–6 and are intentionally left untagged until each step
+feeds the payload — tagging them now would only render empty values (see the rule at
+the top of this section).
 
 ### Remaining sections
 
@@ -74,3 +98,33 @@ tags placed in the row's cells:
 closes it in the last; docxtemplater emits one row per array item. This is done
 by hand in Word when we build the table steps and needs the payload to provide
 arrays, not flat strings.
+
+### The "Client" column reuses Step 1 — parties
+
+Almost every table has a **Client** (or entity) column whose value is `Client 1`,
+`Client 2`, or the corporation. Those are **not** re-entered per step — they come
+from the parties derived from Step 1 (People & Profile), which is the single source
+of truth. `src/lib/iflp-form.ts` exposes the primitive:
+
+| Helper | Use |
+| --- | --- |
+| `deriveParties(state)` | client 1, client 2 (if entered), corporation (if named) — in order |
+| `deriveClients(state)` | clients only, for "one row per client" tables (CPP/OAS, TFSA, term life) |
+| `partyOptions(state)` | `{label,value}[]` for the **form's** `SelectInput` — labels are the Step-1 names |
+| `partyName(state, key)` | resolve a stored `PartyKey` back to a display name |
+
+The payload carries `clients` and `parties` as **loop-ready arrays**, so a template
+row becomes a loop over them and the name is reused automatically:
+
+```
+{#clients}<cell>{name}</cell> <cell>{cppAmount}</cell> <cell>{oasAmount}</cell>{/clients}
+```
+
+One row per client, each `{name}` filled from Step 1 — and a **solo plan drops the
+second row on its own** (the array has one item), which is the table-level version
+of "the second client is optional." Use `{#parties}` instead of `{#clients}` for
+tables that also row against the corporation (income alignment, funding, transfers).
+
+Later steps attach their own per-row figures (`cppAmount`, `contribution`, …) to
+these items as each step is built; until then those loop tags render blank
+(harmless), while the reused **names** already work.
