@@ -33,6 +33,9 @@ import {
   type IflpFormState,
   type IncomeFrequency,
   type RetirementBucketsInput,
+  type AccessToCapitalInput,
+  type RetirementIncomeInput,
+  type RetirementIncomeSource,
   type CorporateAccountsInput,
   type TransferRow,
   type FundingRow,
@@ -421,6 +424,18 @@ function GoalsStep({
   state: IflpFormState;
   patch: (u: Partial<IflpFormState>) => void;
 }) {
+  // Projected Access to Capital — fixed year rows (labels static; amounts only).
+  const ac = state.accessToCapital;
+  const setAC = (u: Partial<AccessToCapitalInput>) =>
+    patch({ accessToCapital: { ...ac, ...u } });
+  const accessCapitalRows: { field: keyof AccessToCapitalInput; label: string }[] = [
+    { field: "year2", label: "Year 2" },
+    { field: "year4", label: "Year 4" },
+    { field: "year6", label: "Year 6" },
+    { field: "year8", label: "Year 8" },
+    { field: "year10", label: "Year 10" },
+  ];
+
   return (
     <>
       <fieldset className="space-y-3">
@@ -498,6 +513,26 @@ function GoalsStep({
           placeholder="$20.0M+"
         />
       </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-semibold text-foreground">
+          Projected Access to Capital
+        </legend>
+        <p className="text-xs text-foreground/50">
+          Potential capital available at each milestone year. Blank rows render
+          empty in the document.
+        </p>
+        {accessCapitalRows.map((row) => (
+          <CurrencyInput
+            key={row.field}
+            id={`access-capital-${row.field}`}
+            label={row.label}
+            prefix="$"
+            value={ac[row.field]}
+            onChange={(v) => setAC({ [row.field]: v })}
+          />
+        ))}
+      </fieldset>
     </>
   );
 }
@@ -554,6 +589,34 @@ function RetirementStep({
       const c = clientFor(p.key);
       return [c.cppAmount, c.oasAmount];
     })
+  );
+
+  // Projected Annual Retirement Income — fixed source rows. Client 2 rows only
+  // show when a second client exists (they drop from the document too).
+  const ri = state.retirementIncome;
+  const setRI = (
+    key: keyof RetirementIncomeInput,
+    u: Partial<RetirementIncomeSource>
+  ) => patch({ retirementIncome: { ...ri, [key]: { ...ri[key], ...u } } });
+  const c1Name = clients[0]?.name || "Client 1";
+  const c2Name = clients[1]?.name || "Client 2";
+  const hasClient2 = clients.length > 1;
+  const incomeRowDefs: {
+    key: keyof RetirementIncomeInput;
+    label: string;
+    client2?: boolean;
+  }[] = [
+    { key: "cppOas1", label: `CPP & OAS (${c1Name})` },
+    { key: "cppOas2", label: `CPP & OAS (${c2Name})`, client2: true },
+    { key: "tfsa1", label: `TFSA (${c1Name})` },
+    { key: "tfsa2", label: `TFSA (${c2Name})`, client2: true },
+    { key: "personalPension", label: "Personal Pension Plan" },
+    { key: "corporateLiquid", label: "Corporate Liquid Bucket" },
+    { key: "corporateFixed", label: "Corporate Fixed Bucket (Tax-Free)" },
+  ];
+  const incomeRows = incomeRowDefs.filter((r) => hasClient2 || !r.client2);
+  const retirementIncomeTotal = sum(
+    incomeRows.map((r) => ri[r.key].annualIncome)
   );
 
   const buckets: {
@@ -745,6 +808,39 @@ function RetirementStep({
             </p>
           </>
         )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Projected Annual Retirement Income"
+        hint="Annual income and expected estate value from each source. Total income is computed."
+      >
+        {incomeRows.map((row) => (
+          <div key={row.key} className="space-y-2">
+            <p className="text-xs font-medium text-foreground/70">{row.label}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <CurrencyInput
+                id={`ri-${row.key}-income`}
+                label="Annual Income"
+                prefix="$"
+                value={ri[row.key].annualIncome}
+                onChange={(annualIncome) => setRI(row.key, { annualIncome })}
+              />
+              <CurrencyInput
+                id={`ri-${row.key}-estate`}
+                label="Expected Estate Value"
+                prefix="$"
+                value={ri[row.key].estateValue}
+                onChange={(estateValue) => setRI(row.key, { estateValue })}
+              />
+            </div>
+          </div>
+        ))}
+        <p className="text-xs text-foreground/60">
+          Total projected annual retirement income:{" "}
+          <span className="font-semibold text-foreground">
+            {money(retirementIncomeTotal)}
+          </span>
+        </p>
       </CollapsibleSection>
     </div>
   );

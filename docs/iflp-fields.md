@@ -86,6 +86,28 @@ and `$00.0M+`, which are prose. `types.ts` already types them as `string`.
 | Liquid capital | `$0.0M+ available` | `TextInput` |
 | Net worth | `$00.0M+` | `TextInput` |
 
+### Projected Access to Capital — **Table**
+
+Fixed year rows (`Year 2 / 4 / 6 / 8 / 10`); labels are static, only the amount is
+entered. Stored in the `accessToCapital` slice.
+
+| Field | Placeholder | Input |
+| --- | --- | --- |
+| Potential capital available × 5 | `$000,000` / `$0,000,000` | `CurrencyInput` |
+
+### Projected Annual Retirement Income — **Table**
+
+Source rows with an annual income and an expected estate value each. CPP & OAS and
+TFSA are per-client (row per client, second dropped for a solo plan); PPP and the
+corporate buckets are single rows; the annual-income Total is *computed*. Stored in
+the `retirementIncome` slice. Entered on Step 3.
+
+| Field | Input |
+| --- | --- |
+| Annual income × 7 sources | `CurrencyInput` |
+| Expected estate value × 7 sources | `CurrencyInput` |
+| Total annual income | *Computed* |
+
 ## 5. Retirement Buckets — **Table**
 
 Five bucket rows. Each row: a contribution and an annual figure (`$00,000/year`).

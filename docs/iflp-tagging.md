@@ -42,6 +42,7 @@ wizard step feeds the payload, or it will simply come out empty (harmless).
 | Placeholder in template | Replace with | Payload key |
 | --- | --- | --- |
 | `Month, 2026` (cover) | `{planMonth}, {planYear}` | planMonth, planYear |
+| `MONTH 2026` (final-page footer) | `{generationMonth} {generationYear}` | generationMonth, generationYear (render-date, upper-cased; **not** the plan date) |
 | `Client 1` (cover name) | `{client1Name}` | client1Name |
 | `Client 2` (cover name) | `{client2Name}` | client2Name |
 | `Dear Client 1, Client 2 & family,` | `{welcomeGreeting}` | welcomeGreeting (computed) |
@@ -95,6 +96,25 @@ defaults to Annually). The payload composes them into the cell string, e.g.
 **Estate Value** stay **free text** (`$5.0M+ available`, `$20.0M+`) — the planner types
 the whole phrase. `Education Funding → Fully funded` is static copy, not a field.
 
+**Projected Access To Capital — Table** (Access to Capital section). Fixed rows
+`Year 2 / 4 / 6 / 8 / 10`; the year labels are static copy, so only the
+"Potential Capital Available" amount cell in each row is tagged (per-cell, like
+Retirement Buckets — not a loop):
+
+| Row · placeholder | Replace with | Payload key |
+| --- | --- | --- |
+| Year 2 · `$000,000` | `{accessCapitalYear2}` | accessCapitalYear2 |
+| Year 4 · `$0,000,000` | `{accessCapitalYear4}` | accessCapitalYear4 |
+| Year 6 · `$0,000,000` | `{accessCapitalYear6}` | accessCapitalYear6 |
+| Year 8 · `$0,000,000` | `{accessCapitalYear8}` | accessCapitalYear8 |
+| Year 10 · `$0,000,000` | `{accessCapitalYear10}` | accessCapitalYear10 |
+
+Each cell is a formatted currency amount (`""` when unset, so a blank row renders
+empty). Inputs live in the `accessToCapital` slice of `IflpFormState`; entered on
+Step 2 under **Projected Access to Capital**. The four `$0,000,000` placeholders
+are identical text in separate cells — tag them top-to-bottom by row, not by
+find-and-replace.
+
 ### Done — Retirement & Savings (Step 3)
 
 Four tables. Two are per-client `{#clients}`-style loops (name reused from Step 1,
@@ -132,6 +152,35 @@ the payload):
 Bucket/monthly-savings inputs live in the `retirementBuckets` and `monthlySavings`
 slices of `IflpFormState`.
 
+**Projected Annual Retirement Income — Table** (Your Retirement Income Summary).
+Three columns: Source | Annual Income | Expected Estate Value. The two per-client
+sources are `{#…}` **loops** (name reused from Step 1, second client auto-dropped —
+like `governmentBenefits`); the rest are fixed single rows; the annual-income Total
+is auto-summed (estate has no total cell).
+
+| Row | Shape | Tags |
+| --- | --- | --- |
+| CPP & OAS (per client) | loop | `{#riCppOas}CPP & OAS ({name})` / `{income}` / `{estate}{/riCppOas}` |
+| TFSA (per client) | loop | `{#riTfsa}TFSA ({name})` / `{income}` / `{estate}{/riTfsa}` |
+| Personal Pension Plan | fixed | `{riPppIncome}` / `{riPppEstate}` |
+| Corporate Liquid Bucket | fixed | `{riCorpLiquidIncome}` / `{riCorpLiquidEstate}` |
+| Corporate Fixed Bucket (Tax-Free) | fixed | `{riCorpFixedIncome}` / `{riCorpFixedEstate}` |
+| **Total** | fixed | `{riTotalIncome}` (estate cell stays blank) |
+
+The summary line just below the table — `Total Projected Retirement Income
+{riTotalIncome} Per Year` — reuses the **same** `{riTotalIncome}` tag, so it always
+matches the table's Total row (no separate payload key).
+
+Inputs live in the `retirementIncome` slice of `IflpFormState` (each source has an
+`annualIncome` + `estateValue`); entered on Step 3 under **Projected Annual
+Retirement Income**. The per-client rows read `cppOas1`/`tfsa1` for client 1 and
+`cppOas2`/`tfsa2` for client 2, and the payload emits one row per *present* client
+(no stale figure for a removed client 2). Each amount is `""` when unset.
+
+> The loop open tag must go **inside** the first cell's `<w:t>` run (e.g.
+> `<w:t>{#riCppOas}CPP & OAS …`), not loose inside `<w:tr>` — a stray open there
+> reads as an "unopened loop" at render time.
+
 ### Done — Accounts & Education (Step 4)
 
 Seven tables. Per-client tables are `{#…}` loops (name reused from Step 1, second
@@ -154,9 +203,15 @@ figures on `IflpChild` (`educationCost`, `educationYearsAway`); MPC/metrics in t
 `corporateAccounts` slice. The education prose "Providing educational opportunities
 for {childrenList} …" reuses the plain child-name list.
 
-**Known follow-up:** the second education-prose sentence ("… ensure Child 1 and
-Child 2 education goals …") is still highlighted, and the "for {childrenList}" prose
-reads slightly off with zero children (no conditional yet).
+The **"Why RESP Alone May Not Be Enough"** sentence ("… help ensure Child 1 and
+Child 2 education goals …") now reads `… help ensure {#hasChildren}{childrenNames} {/hasChildren}education goals …`,
+reusing the possessive `{childrenNames}` list (e.g. "Emma and Liam’s"). The name and
+its trailing space are wrapped in `{#hasChildren}` so a childless plan drops them
+cleanly ("… help ensure education goals …") with no orphan text or double space —
+no new payload key.
+
+**Known follow-up:** the "for {childrenList}" education-prose sentence still reads
+slightly off with zero children (no conditional yet).
 
 ### Done — Insurance (Step 5)
 
@@ -179,6 +234,9 @@ Six **dynamic** (add/remove) tables — the planner builds rows, each referencin
 party (client 1 / client 2 / corporation) that the document resolves to a name.
 Each template table keeps **one** row as the loop body; the pre-allocated blank
 rows were deleted, and the inverted-highlight header rows were un-highlighted.
+(A later pass cleared the last stray yellow highlights left on the header cells of
+the **Account Transfers – Personal** and **Account Transfers – Corporation**
+tables — on the "In-Kind/ In-Cash" and "Expected Time To Receive Funds" columns.)
 
 | Table | Tags |
 | --- | --- |

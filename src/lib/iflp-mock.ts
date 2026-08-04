@@ -68,6 +68,22 @@ export const mockIflpFormState: IflpFormState = {
   passiveIncomeFrequency: "annually",
   successLiquidCapital: "$5.0M+ available",
   successNetWorth: "$20.0M+",
+  accessToCapital: {
+    year2: 250000,
+    year4: 1200000,
+    year6: 2400000,
+    year8: 3800000,
+    year10: 5500000,
+  },
+  retirementIncome: {
+    cppOas1: { annualIncome: 23000, estateValue: 0 },
+    cppOas2: { annualIncome: 21500, estateValue: 0 },
+    tfsa1: { annualIncome: 18000, estateValue: 210000 },
+    tfsa2: { annualIncome: 15000, estateValue: 185000 },
+    personalPension: { annualIncome: 95000, estateValue: 1200000 },
+    corporateLiquid: { annualIncome: 60000, estateValue: 720000 },
+    corporateFixed: { annualIncome: 150000, estateValue: 3500000 },
+  },
   retirementBuckets: {
     governmentAnnual: 44500,
     personalMonthly: 2000,

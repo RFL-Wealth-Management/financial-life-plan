@@ -62,6 +62,37 @@ export interface MonthlySavingsInput {
   corpFixed: number | null;
 }
 
+// Step 2 — Projected Access To Capital. Fixed year rows (2/4/6/8/10); only the
+// "Potential Capital Available" amount is entered per row. The year intervals are
+// fixed by the template (and by the persisted AccessToCapital model in types.ts),
+// so only the amounts are stored.
+export interface AccessToCapitalInput {
+  year2: number | null;
+  year4: number | null;
+  year6: number | null;
+  year8: number | null;
+  year10: number | null;
+}
+
+// Step 3 — Projected Annual Retirement Income (Your Retirement Income Summary).
+// A fixed-row summary: each source contributes an annual income and an expected
+// estate value. The client-specific rows (CPP & OAS, TFSA) drop out for a solo
+// plan; PPP and the corporate buckets are single rows. The annual-income Total is
+// auto-computed (estate has no total cell in the template).
+export interface RetirementIncomeSource {
+  annualIncome: number | null;
+  estateValue: number | null;
+}
+export interface RetirementIncomeInput {
+  cppOas1: RetirementIncomeSource;
+  cppOas2: RetirementIncomeSource;
+  tfsa1: RetirementIncomeSource;
+  tfsa2: RetirementIncomeSource;
+  personalPension: RetirementIncomeSource;
+  corporateLiquid: RetirementIncomeSource;
+  corporateFixed: RetirementIncomeSource;
+}
+
 // Step 4 — corporate account figures that aren't per-client. The Corporate
 // Liquid Bucket rows against the corporation only (MPC), and the Corporate Fixed
 // Bucket's "delivers" metrics are single figures for the whole plan.
@@ -120,6 +151,10 @@ export interface IflpFormState {
   // verbatim (e.g. "$5.0M+ available", "$20.0M+") — not simple currency.
   successLiquidCapital: string;
   successNetWorth: string;
+  // Step 2 — Projected Access To Capital table (fixed year rows; amounts only).
+  accessToCapital: AccessToCapitalInput;
+  // Step 3 — Projected Annual Retirement Income summary (fixed source rows).
+  retirementIncome: RetirementIncomeInput;
   // Step 3 — fixed-row tables (per-client tables read off client1/client2).
   retirementBuckets: RetirementBucketsInput;
   monthlySavings: MonthlySavingsInput;
@@ -184,6 +219,22 @@ export const initialIflpFormState: IflpFormState = {
   passiveIncomeFrequency: "annually",
   successLiquidCapital: "",
   successNetWorth: "",
+  accessToCapital: {
+    year2: null,
+    year4: null,
+    year6: null,
+    year8: null,
+    year10: null,
+  },
+  retirementIncome: {
+    cppOas1: { annualIncome: null, estateValue: null },
+    cppOas2: { annualIncome: null, estateValue: null },
+    tfsa1: { annualIncome: null, estateValue: null },
+    tfsa2: { annualIncome: null, estateValue: null },
+    personalPension: { annualIncome: null, estateValue: null },
+    corporateLiquid: { annualIncome: null, estateValue: null },
+    corporateFixed: { annualIncome: null, estateValue: null },
+  },
   retirementBuckets: {
     governmentAnnual: null,
     personalMonthly: null,
@@ -395,6 +446,11 @@ export interface RenderedFundingRow {
 export interface IflpDocPayload {
   planMonth: string;
   planYear: string;
+  // The date this document was generated (final-page footer), from the render-time
+  // clock — not the planner-entered plan date. Month is upper-cased to match the
+  // template's "MONTH 2026" footer styling.
+  generationMonth: string;
+  generationYear: string;
   client1Name: string;
   client2Name: string;
   welcomeGreeting: string;
@@ -488,6 +544,35 @@ export interface IflpDocPayload {
   successPassiveIncome: string;
   successLiquidCapital: string;
   successNetWorth: string;
+  // Step 2 — Projected Access To Capital. Fixed year rows; each cell is the
+  // formatted "Potential Capital Available" amount ("" when unset).
+  accessCapitalYear2: string;
+  accessCapitalYear4: string;
+  accessCapitalYear6: string;
+  accessCapitalYear8: string;
+  accessCapitalYear10: string;
+  // Step 3 — Projected Annual Retirement Income (Your Retirement Income Summary).
+  // The two per-client sources loop one row per client (name reused from Step 1,
+  // second client auto-dropped for a solo plan — same as governmentBenefits). The
+  // remaining sources are single fixed rows. Total is the auto-summed annual-income
+  // column; every amount is "" when unset.
+  riCppOas: RetirementIncomeDocRow[];
+  riTfsa: RetirementIncomeDocRow[];
+  riPppIncome: string;
+  riPppEstate: string;
+  riCorpLiquidIncome: string;
+  riCorpLiquidEstate: string;
+  riCorpFixedIncome: string;
+  riCorpFixedEstate: string;
+  riTotalIncome: string;
+}
+
+// One rendered row of a per-client retirement-income source (CPP & OAS, TFSA):
+// the client name plus the formatted annual income and expected estate value.
+export interface RetirementIncomeDocRow {
+  name: string;
+  income: string;
+  estate: string;
 }
 
 function fullName(c: IflpClient): string {
@@ -648,9 +733,28 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
   const rb = state.retirementBuckets;
   const ms = state.monthlySavings;
   const ca = state.corporateAccounts;
+  const ri = state.retirementIncome;
   const incomeAlignment = clientRecords(state).map((c) => ({
     name: fullName(c),
     salary: formatCurrency(c.incomeAlignmentSalary),
+  }));
+
+  // Retirement income: the two per-client sources (CPP & OAS, TFSA) as one row
+  // per existing client, so a solo plan drops the second row (like every other
+  // per-client table). cppOas1/tfsa1 pair with client 1, cppOas2/tfsa2 with
+  // client 2; a client not present contributes no row (and no stale figure).
+  const riIncomeClients = deriveClients(state);
+  const riCppOasSources = [ri.cppOas1, ri.cppOas2];
+  const riTfsaSources = [ri.tfsa1, ri.tfsa2];
+  const riCppOas: RetirementIncomeDocRow[] = riIncomeClients.map((p, i) => ({
+    name: p.name,
+    income: formatCurrency(riCppOasSources[i].annualIncome),
+    estate: formatCurrency(riCppOasSources[i].estateValue),
+  }));
+  const riTfsa: RetirementIncomeDocRow[] = riIncomeClients.map((p, i) => ({
+    name: p.name,
+    income: formatCurrency(riTfsaSources[i].annualIncome),
+    estate: formatCurrency(riTfsaSources[i].estateValue),
   }));
 
   const educationChildren = state.children.filter((c) => c.firstName.trim());
@@ -685,9 +789,15 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
       bucket: r.bucket,
     }));
 
+  const now = new Date();
+
   return {
     planMonth: state.planMonth.trim(),
     planYear: state.planYear ? String(state.planYear) : "",
+    generationMonth: now
+      .toLocaleString("en-US", { month: "long" })
+      .toUpperCase(),
+    generationYear: String(now.getFullYear()),
     client1Name: c1Full,
     client2Name: c2Full,
     welcomeGreeting,
@@ -773,5 +883,27 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
     ),
     successLiquidCapital: state.successLiquidCapital.trim(),
     successNetWorth: state.successNetWorth.trim(),
+    accessCapitalYear2: formatCurrency(state.accessToCapital.year2),
+    accessCapitalYear4: formatCurrency(state.accessToCapital.year4),
+    accessCapitalYear6: formatCurrency(state.accessToCapital.year6),
+    accessCapitalYear8: formatCurrency(state.accessToCapital.year8),
+    accessCapitalYear10: formatCurrency(state.accessToCapital.year10),
+    riCppOas: riCppOas,
+    riTfsa: riTfsa,
+    riPppIncome: formatCurrency(ri.personalPension.annualIncome),
+    riPppEstate: formatCurrency(ri.personalPension.estateValue),
+    riCorpLiquidIncome: formatCurrency(ri.corporateLiquid.annualIncome),
+    riCorpLiquidEstate: formatCurrency(ri.corporateLiquid.estateValue),
+    riCorpFixedIncome: formatCurrency(ri.corporateFixed.annualIncome),
+    riCorpFixedEstate: formatCurrency(ri.corporateFixed.estateValue),
+    riTotalIncome: formatCurrency(
+      sumOrNull([
+        ...riIncomeClients.map((_, i) => riCppOasSources[i].annualIncome),
+        ...riIncomeClients.map((_, i) => riTfsaSources[i].annualIncome),
+        ri.personalPension.annualIncome,
+        ri.corporateLiquid.annualIncome,
+        ri.corporateFixed.annualIncome,
+      ])
+    ),
   };
 }
