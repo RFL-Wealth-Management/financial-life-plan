@@ -8,6 +8,11 @@ interface SelectInputProps {
   options: { label: string; value: string }[];
   required?: boolean;
   placeholder?: string;
+  /**
+   * Visually hide the label (kept for screen readers) — for fields paired inline
+   * with a labelled sibling, where a second visible label is redundant.
+   */
+  hideLabel?: boolean;
 }
 
 export function SelectInput({
@@ -18,12 +23,15 @@ export function SelectInput({
   options,
   required,
   placeholder,
+  hideLabel,
 }: SelectInputProps) {
   return (
     <div>
       <label
         htmlFor={id}
-        className="block text-xs font-medium text-foreground/70 mb-1"
+        className={`block text-xs font-medium text-foreground/70 mb-1 ${
+          hideLabel ? "sr-only" : ""
+        }`}
       >
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}

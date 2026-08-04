@@ -2,11 +2,21 @@ import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import fs from "fs";
 import path from "path";
+import type { IflpDocPayload } from "@/lib/iflp-form";
 
 const TEMPLATE_PATH = path.join(
   process.cwd(),
   "templates",
   "fflp-template.docx"
+);
+
+// The hand-tagged duplicate (iflp-template.docx's highlighted placeholders
+// replaced with {tags} in Word) — NOT the highlighted source itself, which
+// docxtemplater cannot fill. See docs/iflp-tagging.md for the field->tag map.
+const IFLP_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  "templates",
+  "iflp.tagged.docx"
 );
 
 interface ClientInput {
@@ -59,4 +69,30 @@ export function generateDocx(data: ClientInput, outputId: string): string {
   fs.writeFileSync(outputPath, buffer);
 
   return outputPath;
+}
+
+/**
+ * Render the IFLP document from a flat tag payload and return it as a buffer.
+ *
+ * Used by the wizard's "generate at any time" flow, so it streams the file
+ * back rather than writing to disk or recording a documents row — persistence
+ * is a later step. Missing values render as empty tags (nullGetter), so a
+ * half-filled form still produces a document to eyeball.
+ */
+export function generateIflpBuffer(payload: IflpDocPayload): Buffer {
+  const templateContent = fs.readFileSync(IFLP_TEMPLATE_PATH, "binary");
+  const zip = new PizZip(templateContent);
+
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+    nullGetter: () => "",
+  });
+
+  doc.render(payload);
+
+  return doc.getZip().generate({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  });
 }

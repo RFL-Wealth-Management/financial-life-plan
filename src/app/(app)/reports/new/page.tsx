@@ -1,9 +1,9 @@
-import { PlanForm } from "@/components/PlanForm";
+import { IflpWizard } from "@/components/IflpWizard";
 
 /**
- * The isAdmin prop is gone: the sidebar in (app)/layout.tsx now decides what
- * navigation each role sees, so the form no longer carries its own chrome.
+ * The IFLP data-entry wizard. Replaces the old 4-field PlanForm; the sidebar in
+ * (app)/layout.tsx provides the surrounding chrome.
  */
 export default function NewReportPage() {
-  return <PlanForm />;
+  return <IflpWizard />;
 }
