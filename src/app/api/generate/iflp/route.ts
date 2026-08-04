@@ -25,6 +25,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // A document needs at least one client — Client 1 must have a name.
+  const hasClient = Boolean(
+    state?.client1?.firstName?.trim() || state?.client1?.lastName?.trim()
+  );
+  if (!hasClient) {
+    return NextResponse.json(
+      { error: "Add Client 1’s name before generating the document." },
+      { status: 400 }
+    );
+  }
+
+  // Target independence age is mandatory.
+  if (state?.targetIndependenceAge == null) {
+    return NextResponse.json(
+      { error: "Add the target independence age before generating the document." },
+      { status: 400 }
+    );
+  }
+
   let buffer: Buffer;
   try {
     buffer = generateIflpBuffer(buildIflpDocPayload(state));

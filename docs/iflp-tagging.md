@@ -59,10 +59,9 @@ still highlighted.
 
 - **Retirement Goal row** (Profile). Its value cell previously read `Age {client1Age}`,
   which rendered the client's *current* age against a "Retirement Goal" label. That
-  was wrong, so the value cell is now intentionally **blank** — it's the placeholder
-  for a future target-retirement-age field, which the Goals wizard step will collect.
-  `client1Age` is therefore not currently referenced by the template (the payload
-  still provides it, harmlessly).
+  was wrong. It now renders `{retirementGoal}` — a computed `Age 55` from the Step 2
+  target independence age, or `""` when that's unset (so the cell stays blank rather
+  than showing a bare "Age "). `client1Age` is no longer referenced by the template.
 - **`{clientsClause}`** carries the subject **and** verb of the intro sentence so it
   agrees with the client count: `Dan and Sam are` (two clients) or `Dan is` (one).
   The template owns the rest of the sentence, so keep the leading `{clientsClause}`
@@ -77,6 +76,121 @@ the later financial tables (retirement buckets, accounts, insurance, transfers, 
 Those belong to wizard steps 2–6 and are intentionally left untagged until each step
 feeds the payload — tagging them now would only render empty values (see the rule at
 the top of this section).
+
+### Done — Goals & Success (Step 2)
+
+| Placeholder in template | Replace with | Payload key |
+| --- | --- | --- |
+| `Create financial independence by age 00` | `… by age {targetIndependenceAge}` | targetIndependenceAge |
+| `Age 00` (Profile, Retirement Goal) | `{retirementGoal}` | retirementGoal (computed from target age) |
+| `$0,000,000 annually` (Retirement Income) | `{successRetirementIncome}` | successRetirementIncome |
+| `$000,000 annually` (Tax-Free Income) | `{successPassiveIncome}` | successPassiveIncome |
+| `$0.0M+ available` (Access To Capital) | `{successLiquidCapital}` | successLiquidCapital |
+| `$00.0M+` (Estate Value) | `{successNetWorth}` | successNetWorth |
+
+**Retirement Income** and **Tax-Free Income** are entered as an **amount + frequency**
+(currency field with a `$` mask, plus a Bi-weekly / Monthly / Annually dropdown that
+defaults to Annually). The payload composes them into the cell string, e.g.
+`$1,200,000 annually`; an empty amount renders blank. **Access To Capital** and
+**Estate Value** stay **free text** (`$5.0M+ available`, `$20.0M+`) — the planner types
+the whole phrase. `Education Funding → Fully funded` is static copy, not a field.
+
+### Done — Retirement & Savings (Step 3)
+
+Four tables. Two are per-client `{#clients}`-style loops (name reused from Step 1,
+second client auto-dropped); two are fixed-row tables with per-cell tags. Every
+**Total** is summed in the payload (auto-computed) and blank until a value is
+entered, so an empty table never shows "$0".
+
+**Government Benefits (CPP & OAS)** — loop over one row per client:
+```
+{#governmentBenefits}<cell>{name}</cell> <cell>{cpp}</cell> <cell>{oas}</cell>{/governmentBenefits}
+```
+Total box → `{governmentBenefitsTotal}`. Figures on `IflpClient` (`cppAmount`, `oasAmount`).
+
+**Income Alignment (Client | Salary)** — loop over one row per client:
+```
+{#incomeAlignment}<cell>{name}</cell> <cell>{salary}</cell>{/incomeAlignment}
+```
+Figure on `IflpClient` (`incomeAlignmentSalary`). No total row.
+
+**Retirement Buckets** — fixed rows, per-cell tags. Government has no monthly
+contribution (stays `N/A`); "delivers" values carry a `/year` suffix (composed in
+the payload):
+
+| Cell | Tag |
+| --- | --- |
+| Government · delivers | `{bucketGovernmentAnnual}` |
+| Personal · monthly / delivers | `{bucketPersonalMonthly}` / `{bucketPersonalAnnual}` |
+| Corp Liquid · monthly / delivers | `{bucketCorpLiquidMonthly}` / `{bucketCorpLiquidAnnual}` |
+| Corp Fixed · monthly / delivers | `{bucketCorpFixedMonthly}` / `{bucketCorpFixedAnnual}` |
+| **Total** · monthly / delivers | `{bucketMonthlyTotal}` / `{bucketAnnualTotal}` |
+
+**Monthly Savings Allocation** — fixed rows: `{monthlySavingsPersonal}`,
+`{monthlySavingsCorpLiquid}`, `{monthlySavingsCorpFixed}`, total `{monthlySavingsTotal}`.
+
+Bucket/monthly-savings inputs live in the `retirementBuckets` and `monthlySavings`
+slices of `IflpFormState`.
+
+### Done — Accounts & Education (Step 4)
+
+Seven tables. Per-client tables are `{#…}` loops (name reused from Step 1, second
+client auto-dropped); MPC/metrics are fixed cells; Education is a per-child loop
+with an auto-computed total.
+
+| Table | Shape | Tags |
+| --- | --- | --- |
+| TFSA | per-client loop | `{#tfsa}{name}` / `{contribution}` / `{estimatedValue}{/tfsa}` |
+| RRSP | per-client loop | `{#rrsp}` … `{contribution}` / `{estimatedValue}` … `{/rrsp}` |
+| PPP | per-client loop | `{#ppp}` … `{/ppp}` |
+| Corporate Liquid Bucket | MPC only (single row) | name = `{corporationName}`, `{corpLiquidMonthly}`, `{corpLiquidEstimatedValue}` |
+| Corporate Fixed — contributions | per-client loop | `{#corporateFixed}{name}` / `{contribution}{/corporateFixed}` |
+| Corporate Fixed — delivers | fixed cells | `{fixedAnnualTaxFreeIncome}`, `{fixedContributionPeriod}`, `{fixedEstateValue}`, `{fixedTotalLifetimeValue}` |
+| Education Funding | per-child loop | `{#education}{name}` / `{cost}` / `{years}{/education}`, total `{educationTotal}` |
+
+Per-client account figures live on `IflpClient` (`tfsaContribution`,
+`tfsaEstimatedValue`, `rrsp*`, `ppp*`, `corporateFixedContribution`); education
+figures on `IflpChild` (`educationCost`, `educationYearsAway`); MPC/metrics in the
+`corporateAccounts` slice. The education prose "Providing educational opportunities
+for {childrenList} …" reuses the plain child-name list.
+
+**Known follow-up:** the second education-prose sentence ("… ensure Child 1 and
+Child 2 education goals …") is still highlighted, and the "for {childrenList}" prose
+reads slightly off with zero children (no conditional yet).
+
+### Done — Insurance (Step 5)
+
+Three per-client loop tables, each `name | amount | modifier` where the modifier is
+a dropdown value (Term Length / Product / Benefit Term). The modifier renders blank
+until an amount is entered.
+
+| Table | Tags |
+| --- | --- |
+| Term Life | `{#termLife}{name}` / `{amount}` / `{modifier}{/termLife}` |
+| Critical Illness | `{#criticalIllness}` … `{/criticalIllness}` |
+| Disability | `{#disability}` … `{/disability}` |
+
+Figures on `IflpClient` (`termLifeCoverage`+`termLifeTerm`, `criticalIllness*`,
+`disability*`).
+
+### Done — Implementation (Step 6)
+
+Six **dynamic** (add/remove) tables — the planner builds rows, each referencing a
+party (client 1 / client 2 / corporation) that the document resolves to a name.
+Each template table keeps **one** row as the loop body; the pre-allocated blank
+rows were deleted, and the inverted-highlight header rows were un-highlighted.
+
+| Table | Tags |
+| --- | --- |
+| Account Transfers — Personal / Corporation | `{#transfersPersonal}{party}` / `{institution}` / `{account}` / `{method}` / `{expectedTime}{/transfersPersonal}` (and `…Corporate`) |
+| Initial Funding Lump Sum — Personal / Corporation | `{#fundingPersonal}{party}` / `{amount}` / `{bucket}{/fundingPersonal}` (and `…Corporate`) |
+| Monthly Contributions — Personal / Corporation | `{#monthlyPersonal}` … `{/monthlyPersonal}` (and `…Corporate`) |
+
+Rows live in the six `IflpFormState` arrays (`transfersPersonal`, …); `party` holds
+a PartyKey resolved via `partyName`, and the transfer `method` value (`in_kind`/
+`in_cash`) is mapped to a label in the payload.
+
+**All six wizard steps are now built.**
 
 ### Remaining sections
 

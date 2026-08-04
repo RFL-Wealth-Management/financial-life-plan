@@ -62,3 +62,10 @@ export const LargeValue: Story = {
   render: () => <Controlled value={1500000} label="Net Worth Target" />,
   name: "Large value ($1,500,000)",
 };
+
+export const WithPrefix: Story = {
+  render: () => (
+    <Controlled value={1200000} label="Retirement Income" prefix="$" />
+  ),
+  name: "With prefix addon ($ segment)",
+};

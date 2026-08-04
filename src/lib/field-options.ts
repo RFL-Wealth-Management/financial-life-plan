@@ -59,6 +59,16 @@ export const fundingKindOptions: FieldOption[] = [
   { label: "Monthly", value: "monthly" },
 ];
 
+// Income frequency for the "What Success Looks Like" income figures. Not a DB
+// enum — the value is composed into the free-text success string that persists
+// (e.g. "$1,200,000 annually"), so the option `value` is the exact adverb that
+// renders in the document. Default is "annually".
+export const incomeFrequencyOptions: FieldOption[] = [
+  { label: "Bi-weekly", value: "bi-weekly" },
+  { label: "Monthly", value: "monthly" },
+  { label: "Annually", value: "annually" },
+];
+
 // The "Your Priorities" TagInput list. Closed set from the template placeholder
 // "Retirement, Tax Efficiency, Education, Protection", plus the extras already
 // used in the Storybook story. Free-text-ish (stored as plans.priorities text[]),

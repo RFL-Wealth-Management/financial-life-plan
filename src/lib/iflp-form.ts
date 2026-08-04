@@ -16,11 +16,85 @@ export interface IflpClient {
   firstName: string;
   lastName: string;
   age: number | null;
+  // Step 3 — per-client financials live on the client so a name entered once
+  // (step 1) carries its figures through every table that rows per client.
+  // Mirrors the persisted Client shape in types.ts.
+  cppAmount: number | null;
+  oasAmount: number | null;
+  incomeAlignmentSalary: number | null;
+  // Step 4 — registered accounts (contribution + projected value, per client).
+  tfsaContribution: number | null;
+  tfsaEstimatedValue: number | null;
+  rrspContribution: number | null;
+  rrspEstimatedValue: number | null;
+  pppContribution: number | null;
+  pppEstimatedValue: number | null;
+  // Step 4 — Corporate Fixed Bucket annual contribution, per client.
+  corporateFixedContribution: number | null;
+  // Step 5 — Insurance, per client. Each is an amount plus a modifier (the term
+  // length / product / benefit term chosen from a dropdown).
+  termLifeCoverage: number | null;
+  termLifeTerm: string;
+  criticalIllnessCoverage: number | null;
+  criticalIllnessProduct: string;
+  disabilityMonthlyBenefit: number | null;
+  disabilityBenefitTerm: string;
+}
+
+// Step 3 — Retirement Buckets. Fixed-label rows; only the amounts are entered.
+// The Government bucket has no monthly contribution (renders "N/A"); every
+// "annual" figure is the bucket's projected "What It Delivers". Totals are
+// computed, not stored.
+export interface RetirementBucketsInput {
+  governmentAnnual: number | null;
+  personalMonthly: number | null;
+  personalAnnual: number | null;
+  corpLiquidMonthly: number | null;
+  corpLiquidAnnual: number | null;
+  corpFixedMonthly: number | null;
+  corpFixedAnnual: number | null;
+}
+
+// Step 3 — Monthly Savings Allocation. Three fixed rows; total is computed.
+export interface MonthlySavingsInput {
+  personal: number | null;
+  corpLiquid: number | null;
+  corpFixed: number | null;
+}
+
+// Step 4 — corporate account figures that aren't per-client. The Corporate
+// Liquid Bucket rows against the corporation only (MPC), and the Corporate Fixed
+// Bucket's "delivers" metrics are single figures for the whole plan.
+export interface CorporateAccountsInput {
+  liquidMonthlyContribution: number | null;
+  liquidEstimatedValue: number | null;
+  fixedAnnualTaxFreeIncome: number | null;
+  fixedContributionPeriodYears: number | null;
+  fixedEstateValue: number | null;
+  fixedTotalLifetimeValue: number | null;
 }
 
 export interface IflpChild {
   firstName: string;
   age: number | null;
+  // Step 4 — Education funding, per child.
+  educationCost: number | null;
+  educationYearsAway: number | null;
+}
+
+// Step 6 — Implementation. Dynamic (add/remove) rows the planner builds. `party`
+// holds a PartyKey ("" if unset); the document renders the party's name.
+export interface TransferRow {
+  party: string;
+  institution: string;
+  account: string;
+  method: string; // transfer-method value (mapped to a label in the document)
+  expectedTime: string;
+}
+export interface FundingRow {
+  party: string;
+  amount: number | null;
+  bucket: string;
 }
 
 export interface IflpFormState {
@@ -32,11 +106,67 @@ export interface IflpFormState {
   corporationName: string;
   householdIncome: number | null;
   priorities: string[];
+  // Step 2 — Goals & Success
+  // The age at which the plan targets financial independence. Also drives the
+  // Profile "Retirement Goal" row.
+  targetIndependenceAge: number | null;
+  // "What Success Looks Like" income figures — an amount plus how often it
+  // recurs. Composed into the document string (e.g. "$1,200,000 annually").
+  retirementIncomeAmount: number | null;
+  retirementIncomeFrequency: IncomeFrequency;
+  passiveIncomeAmount: number | null;
+  passiveIncomeFrequency: IncomeFrequency;
+  // The remaining two success figures are free-text prose the planner enters
+  // verbatim (e.g. "$5.0M+ available", "$20.0M+") — not simple currency.
+  successLiquidCapital: string;
+  successNetWorth: string;
+  // Step 3 — fixed-row tables (per-client tables read off client1/client2).
+  retirementBuckets: RetirementBucketsInput;
+  monthlySavings: MonthlySavingsInput;
+  // Step 4 — corporate account figures (per-client account figures live on the
+  // clients; per-child education figures live on the children).
+  corporateAccounts: CorporateAccountsInput;
+  // Step 6 — Implementation (dynamic add/remove tables, personal + corporate).
+  transfersPersonal: TransferRow[];
+  transfersCorporate: TransferRow[];
+  fundingPersonal: FundingRow[];
+  fundingCorporate: FundingRow[];
+  monthlyPersonal: FundingRow[];
+  monthlyCorporate: FundingRow[];
 }
 
-export const emptyClient: IflpClient = { firstName: "", lastName: "", age: null };
+// How often a success income figure recurs. The value doubles as the adverb
+// rendered in the document, so keep it in sync with incomeFrequencyOptions.
+export type IncomeFrequency = "bi-weekly" | "monthly" | "annually";
 
-export const emptyChild: IflpChild = { firstName: "", age: null };
+export const emptyClient: IflpClient = {
+  firstName: "",
+  lastName: "",
+  age: null,
+  cppAmount: null,
+  oasAmount: null,
+  incomeAlignmentSalary: null,
+  tfsaContribution: null,
+  tfsaEstimatedValue: null,
+  rrspContribution: null,
+  rrspEstimatedValue: null,
+  pppContribution: null,
+  pppEstimatedValue: null,
+  corporateFixedContribution: null,
+  termLifeCoverage: null,
+  termLifeTerm: "30 Years",
+  criticalIllnessCoverage: null,
+  criticalIllnessProduct: "Living Benefit 75",
+  disabilityMonthlyBenefit: null,
+  disabilityBenefitTerm: "To Age 65",
+};
+
+export const emptyChild: IflpChild = {
+  firstName: "",
+  age: null,
+  educationCost: null,
+  educationYearsAway: null,
+};
 
 export const initialIflpFormState: IflpFormState = {
   planMonth: "",
@@ -47,7 +177,48 @@ export const initialIflpFormState: IflpFormState = {
   corporationName: "",
   householdIncome: null,
   priorities: [],
+  targetIndependenceAge: null,
+  retirementIncomeAmount: null,
+  retirementIncomeFrequency: "annually",
+  passiveIncomeAmount: null,
+  passiveIncomeFrequency: "annually",
+  successLiquidCapital: "",
+  successNetWorth: "",
+  retirementBuckets: {
+    governmentAnnual: null,
+    personalMonthly: null,
+    personalAnnual: null,
+    corpLiquidMonthly: null,
+    corpLiquidAnnual: null,
+    corpFixedMonthly: null,
+    corpFixedAnnual: null,
+  },
+  monthlySavings: { personal: null, corpLiquid: null, corpFixed: null },
+  corporateAccounts: {
+    liquidMonthlyContribution: null,
+    liquidEstimatedValue: null,
+    fixedAnnualTaxFreeIncome: null,
+    fixedContributionPeriodYears: null,
+    fixedEstateValue: null,
+    fixedTotalLifetimeValue: null,
+  },
+  transfersPersonal: [],
+  transfersCorporate: [],
+  fundingPersonal: [],
+  fundingCorporate: [],
+  monthlyPersonal: [],
+  monthlyCorporate: [],
 };
+
+export const emptyTransferRow: TransferRow = {
+  party: "",
+  institution: "",
+  account: "",
+  method: "",
+  expectedTime: "",
+};
+
+export const emptyFundingRow: FundingRow = { party: "", amount: null, bucket: "" };
 
 // ---------------------------------------------------------------------------
 // Wizard steps. Only "people" renders real fields today; the rest are
@@ -133,6 +304,13 @@ export function deriveClients(state: IflpFormState): IflpParty[] {
   return deriveParties(state).filter((p) => p.type === "client");
 }
 
+// The clients (client 1, then client 2 if named) as IflpClient records, so a
+// step can read the per-client figures it owns. Same ordering/inclusion rule as
+// deriveClients.
+export function clientRecords(state: IflpFormState): IflpClient[] {
+  return [state.client1, state.client2].filter(hasClient);
+}
+
 // Option list for the "Client"/entity dropdown (SelectInput) in later-step
 // tables: value is the stable party key, label is the name from step 1. Pass
 // `clientsOnly` for tables that never row against the corporation.
@@ -155,8 +333,65 @@ export function partyName(state: IflpFormState, key: PartyKey): string {
 // State -> doc payload
 // ---------------------------------------------------------------------------
 
-// Flat keys are the {tags} typed into templates/iflp.tagged.docx. Every value
-// is a string because that is what lands in the document.
+// One rendered row of the Government Benefits (CPP & OAS) table.
+export interface GovernmentBenefitRow {
+  name: string;
+  cpp: string;
+  oas: string;
+}
+
+// One rendered row of the Income Alignment table (Client | Salary).
+export interface IncomeAlignmentRow {
+  name: string;
+  salary: string;
+}
+
+// One rendered row of a registered-account table (TFSA/RRSP/PPP): a client name,
+// a contribution, and a projected value.
+export interface AccountRow {
+  name: string;
+  contribution: string;
+  estimatedValue: string;
+}
+
+// One rendered row of the Corporate Fixed Bucket contribution table.
+export interface CorporateFixedRow {
+  name: string;
+  contribution: string;
+}
+
+// One rendered row of the Education Funding table (Child | Funding Goal | Years).
+export interface EducationRow {
+  name: string;
+  cost: string;
+  years: string;
+}
+
+// One rendered row of an insurance table: a client, an amount, and a modifier
+// (term length / product / benefit term).
+export interface InsuranceRow {
+  name: string;
+  amount: string;
+  modifier: string;
+}
+
+// Rendered implementation rows (party resolved to a name; amount formatted).
+export interface RenderedTransferRow {
+  party: string;
+  institution: string;
+  account: string;
+  method: string;
+  expectedTime: string;
+}
+export interface RenderedFundingRow {
+  party: string;
+  amount: string;
+  bucket: string;
+}
+
+// Flat keys are the {tags} typed into templates/iflp.tagged.docx. Values are
+// strings (what lands in the document) or, for repeating tables, arrays of row
+// objects that the template loops over.
 export interface IflpDocPayload {
   planMonth: string;
   planYear: string;
@@ -188,6 +423,71 @@ export interface IflpDocPayload {
   // `parties` also includes the corporation for tables that row against it.
   clients: IflpParty[];
   parties: IflpParty[];
+  // Step 3 — Government benefits (CPP & OAS). One row per client, looped in the
+  // template as {#governmentBenefits} … {/governmentBenefits}; the name is reused
+  // from step 1 and the total is summed here (auto-computed, not entered).
+  governmentBenefits: GovernmentBenefitRow[];
+  governmentBenefitsTotal: string;
+  // Step 3 — Income Alignment (Client | Salary), one row per client.
+  incomeAlignment: IncomeAlignmentRow[];
+  // Step 3 — Retirement Buckets (fixed rows; "annual" values carry a "/year"
+  // suffix; totals are summed here). Government has no monthly contribution.
+  bucketGovernmentAnnual: string;
+  bucketPersonalMonthly: string;
+  bucketPersonalAnnual: string;
+  bucketCorpLiquidMonthly: string;
+  bucketCorpLiquidAnnual: string;
+  bucketCorpFixedMonthly: string;
+  bucketCorpFixedAnnual: string;
+  bucketMonthlyTotal: string;
+  bucketAnnualTotal: string;
+  // Step 3 — Monthly Savings Allocation (fixed rows; total summed here).
+  monthlySavingsPersonal: string;
+  monthlySavingsCorpLiquid: string;
+  monthlySavingsCorpFixed: string;
+  monthlySavingsTotal: string;
+  // Step 4 — Accounts & Education.
+  // TFSA / RRSP / PPP: one row per client (loops).
+  tfsa: AccountRow[];
+  rrsp: AccountRow[];
+  ppp: AccountRow[];
+  // Corporate Liquid Bucket: MPC only, so single (non-loop) figures. The name
+  // cell reuses {corporationName}.
+  corpLiquidMonthly: string;
+  corpLiquidEstimatedValue: string;
+  // Corporate Fixed Bucket: contribution per client (loop) + "delivers" metrics.
+  corporateFixed: CorporateFixedRow[];
+  fixedAnnualTaxFreeIncome: string;
+  fixedContributionPeriod: string;
+  fixedEstateValue: string;
+  fixedTotalLifetimeValue: string;
+  // Education Funding: one row per child (loop) + auto-computed total.
+  education: EducationRow[];
+  educationTotal: string;
+  // Plain list of children's names for education prose, e.g. "Emma and Liam".
+  childrenList: string;
+  // Step 5 — Insurance. One row per client (loops); the modifier is blank until
+  // an amount is entered so empty rows don't show a stray term.
+  termLife: InsuranceRow[];
+  criticalIllness: InsuranceRow[];
+  disability: InsuranceRow[];
+  // Step 6 — Implementation (dynamic tables). Party keys resolved to names.
+  transfersPersonal: RenderedTransferRow[];
+  transfersCorporate: RenderedTransferRow[];
+  fundingPersonal: RenderedFundingRow[];
+  fundingCorporate: RenderedFundingRow[];
+  monthlyPersonal: RenderedFundingRow[];
+  monthlyCorporate: RenderedFundingRow[];
+  // Step 2 — Goals & Success
+  // Number as a string for "… by age {targetIndependenceAge}". "" when unset.
+  targetIndependenceAge: string;
+  // Profile "Retirement Goal" row: "Age 55" when a target age is set, else ""
+  // (so the cell stays blank rather than showing a bare "Age ").
+  retirementGoal: string;
+  successRetirementIncome: string;
+  successPassiveIncome: string;
+  successLiquidCapital: string;
+  successNetWorth: string;
 }
 
 function fullName(c: IflpClient): string {
@@ -227,10 +527,96 @@ function formatChildrenPossessive(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${last}’s`;
 }
 
+// Plain (non-possessive) name list for prose: ["Emma","Liam"] -> "Emma and Liam".
+function formatNameList(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  const last = names[names.length - 1];
+  return `${names.slice(0, -1).join(", ")} and ${last}`;
+}
+
 // "$285,000" from 285000. Null -> "".
 function formatCurrency(n: number | null): string {
   if (n == null || Number.isNaN(n)) return "";
   return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+// "$1,200,000 annually" from (1200000, "annually"). No amount -> "" (the
+// frequency alone is meaningless without a number).
+function formatIncome(amount: number | null, frequency: IncomeFrequency): string {
+  const money = formatCurrency(amount);
+  return money ? `${money} ${frequency}` : "";
+}
+
+// "$285,000/year" for the Retirement Buckets "What It Delivers" column. Null -> "".
+function formatPerYear(n: number | null): string {
+  const money = formatCurrency(n);
+  return money ? `${money}/year` : "";
+}
+
+// Sum, treating null as absent — returns null when every value is null so a
+// blank table shows "" rather than "$0".
+function sumOrNull(values: (number | null)[]): number | null {
+  const nums = values.filter((v): v is number => v != null);
+  return nums.length ? nums.reduce((a, b) => a + b, 0) : null;
+}
+
+// "12 Years" from 12. Null -> "".
+function formatYears(n: number | null): string {
+  return n == null ? "" : `${n} Year${n === 1 ? "" : "s"}`;
+}
+
+// A registered-account table (TFSA/RRSP/PPP) as one row per client, reading the
+// given contribution/value fields off each client.
+function accountRows(
+  state: IflpFormState,
+  contribution: keyof IflpClient,
+  estimatedValue: keyof IflpClient
+): AccountRow[] {
+  return clientRecords(state).map((c) => ({
+    name: fullName(c),
+    contribution: formatCurrency(c[contribution] as number | null),
+    estimatedValue: formatCurrency(c[estimatedValue] as number | null),
+  }));
+}
+
+// An insurance table as one row per client. The modifier (term/product) is only
+// rendered once an amount is entered, so unfilled rows stay clean.
+function insuranceRows(
+  state: IflpFormState,
+  amount: keyof IflpClient,
+  modifier: keyof IflpClient
+): InsuranceRow[] {
+  return clientRecords(state).map((c) => {
+    const value = c[amount] as number | null;
+    return {
+      name: fullName(c),
+      amount: formatCurrency(value),
+      modifier: value == null ? "" : (c[modifier] as string),
+    };
+  });
+}
+
+// Government benefit rows (one per client) plus the auto-computed total. The
+// total is "" until at least one CPP/OAS amount is entered, so a blank table
+// doesn't show "$0".
+function buildGovernmentBenefits(state: IflpFormState): {
+  rows: GovernmentBenefitRow[];
+  total: string;
+} {
+  const clients = clientRecords(state);
+  const rows = clients.map((c) => ({
+    name: fullName(c),
+    cpp: formatCurrency(c.cppAmount),
+    oas: formatCurrency(c.oasAmount),
+  }));
+  const amounts = clients
+    .flatMap((c) => [c.cppAmount, c.oasAmount])
+    .filter((v): v is number => v != null);
+  const total = amounts.length
+    ? formatCurrency(amounts.reduce((sum, v) => sum + v, 0))
+    : "";
+  return { rows, total };
 }
 
 export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
@@ -257,6 +643,47 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
     : "";
 
   const names = childNames(state.children);
+  const govBenefits = buildGovernmentBenefits(state);
+
+  const rb = state.retirementBuckets;
+  const ms = state.monthlySavings;
+  const ca = state.corporateAccounts;
+  const incomeAlignment = clientRecords(state).map((c) => ({
+    name: fullName(c),
+    salary: formatCurrency(c.incomeAlignmentSalary),
+  }));
+
+  const educationChildren = state.children.filter((c) => c.firstName.trim());
+  const education = educationChildren.map((c) => ({
+    name: c.firstName.trim(),
+    cost: formatCurrency(c.educationCost),
+    years: formatYears(c.educationYearsAway),
+  }));
+  const educationTotal = formatCurrency(
+    sumOrNull(educationChildren.map((c) => c.educationCost))
+  );
+
+  const corporateFixed = clientRecords(state).map((c) => ({
+    name: fullName(c),
+    contribution: formatCurrency(c.corporateFixedContribution),
+  }));
+
+  const methodLabel = (v: string): string =>
+    v === "in_kind" ? "In-Kind" : v === "in_cash" ? "In-Cash" : "";
+  const renderTransfers = (rows: TransferRow[]): RenderedTransferRow[] =>
+    rows.map((r) => ({
+      party: partyName(state, r.party as PartyKey),
+      institution: r.institution.trim(),
+      account: r.account,
+      method: methodLabel(r.method),
+      expectedTime: r.expectedTime.trim(),
+    }));
+  const renderFunding = (rows: FundingRow[]): RenderedFundingRow[] =>
+    rows.map((r) => ({
+      party: partyName(state, r.party as PartyKey),
+      amount: formatCurrency(r.amount),
+      bucket: r.bucket,
+    }));
 
   return {
     planMonth: state.planMonth.trim(),
@@ -275,5 +702,76 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
     childrenNames: formatChildrenPossessive(names),
     clients: deriveClients(state),
     parties: deriveParties(state),
+    governmentBenefits: govBenefits.rows,
+    governmentBenefitsTotal: govBenefits.total,
+    incomeAlignment,
+    bucketGovernmentAnnual: formatPerYear(rb.governmentAnnual),
+    bucketPersonalMonthly: formatCurrency(rb.personalMonthly),
+    bucketPersonalAnnual: formatPerYear(rb.personalAnnual),
+    bucketCorpLiquidMonthly: formatCurrency(rb.corpLiquidMonthly),
+    bucketCorpLiquidAnnual: formatPerYear(rb.corpLiquidAnnual),
+    bucketCorpFixedMonthly: formatCurrency(rb.corpFixedMonthly),
+    bucketCorpFixedAnnual: formatPerYear(rb.corpFixedAnnual),
+    bucketMonthlyTotal: formatCurrency(
+      sumOrNull([rb.personalMonthly, rb.corpLiquidMonthly, rb.corpFixedMonthly])
+    ),
+    bucketAnnualTotal: formatPerYear(
+      sumOrNull([
+        rb.governmentAnnual,
+        rb.personalAnnual,
+        rb.corpLiquidAnnual,
+        rb.corpFixedAnnual,
+      ])
+    ),
+    monthlySavingsPersonal: formatCurrency(ms.personal),
+    monthlySavingsCorpLiquid: formatCurrency(ms.corpLiquid),
+    monthlySavingsCorpFixed: formatCurrency(ms.corpFixed),
+    monthlySavingsTotal: formatCurrency(
+      sumOrNull([ms.personal, ms.corpLiquid, ms.corpFixed])
+    ),
+    tfsa: accountRows(state, "tfsaContribution", "tfsaEstimatedValue"),
+    rrsp: accountRows(state, "rrspContribution", "rrspEstimatedValue"),
+    ppp: accountRows(state, "pppContribution", "pppEstimatedValue"),
+    corpLiquidMonthly: formatCurrency(ca.liquidMonthlyContribution),
+    corpLiquidEstimatedValue: formatCurrency(ca.liquidEstimatedValue),
+    corporateFixed,
+    fixedAnnualTaxFreeIncome: formatCurrency(ca.fixedAnnualTaxFreeIncome),
+    fixedContributionPeriod: formatYears(ca.fixedContributionPeriodYears),
+    fixedEstateValue: formatCurrency(ca.fixedEstateValue),
+    fixedTotalLifetimeValue: formatCurrency(ca.fixedTotalLifetimeValue),
+    education,
+    educationTotal,
+    childrenList: formatNameList(names),
+    termLife: insuranceRows(state, "termLifeCoverage", "termLifeTerm"),
+    criticalIllness: insuranceRows(
+      state,
+      "criticalIllnessCoverage",
+      "criticalIllnessProduct"
+    ),
+    disability: insuranceRows(
+      state,
+      "disabilityMonthlyBenefit",
+      "disabilityBenefitTerm"
+    ),
+    transfersPersonal: renderTransfers(state.transfersPersonal),
+    transfersCorporate: renderTransfers(state.transfersCorporate),
+    fundingPersonal: renderFunding(state.fundingPersonal),
+    fundingCorporate: renderFunding(state.fundingCorporate),
+    monthlyPersonal: renderFunding(state.monthlyPersonal),
+    monthlyCorporate: renderFunding(state.monthlyCorporate),
+    targetIndependenceAge:
+      state.targetIndependenceAge == null ? "" : String(state.targetIndependenceAge),
+    retirementGoal:
+      state.targetIndependenceAge == null ? "" : `Age ${state.targetIndependenceAge}`,
+    successRetirementIncome: formatIncome(
+      state.retirementIncomeAmount,
+      state.retirementIncomeFrequency
+    ),
+    successPassiveIncome: formatIncome(
+      state.passiveIncomeAmount,
+      state.passiveIncomeFrequency
+    ),
+    successLiquidCapital: state.successLiquidCapital.trim(),
+    successNetWorth: state.successNetWorth.trim(),
   };
 }
