@@ -37,6 +37,7 @@ import {
   type TransferRow,
   type FundingRow,
 } from "@/lib/iflp-form";
+import { mockIflpFormState } from "@/lib/iflp-mock";
 
 export function IflpWizard() {
   const [state, setState] = useState<IflpFormState>(initialIflpFormState);
@@ -47,6 +48,8 @@ export function IflpWizard() {
   const step = IFLP_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === IFLP_STEPS.length - 1;
+  // Dev-only shortcut — dead-code-eliminated from production builds.
+  const isDev = process.env.NODE_ENV === "development";
 
   // Requirements before a document can be generated. Guarded on the button
   // here; the API enforces the same rules. `generateBlockedReason` is empty
@@ -209,14 +212,29 @@ export function IflpWizard() {
 
         {/* Nav + generate */}
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-foreground/10 pt-5">
-          <button
-            type="button"
-            onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-            disabled={isFirst}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Back
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              disabled={isFirst}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Back
+            </button>
+            {isDev && (
+              <button
+                type="button"
+                onClick={() => {
+                  setState(mockIflpFormState);
+                  setError("");
+                }}
+                title="Dev only — fill every step with sample data"
+                className="rounded-lg border border-dashed border-foreground/25 px-3 py-2 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+              >
+                Fill mock data
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-3">
             <button
@@ -228,14 +246,15 @@ export function IflpWizard() {
             >
               {generating ? "Generating…" : "Generate document"}
             </button>
-            <button
-              type="button"
-              onClick={() => setStepIndex((i) => Math.min(IFLP_STEPS.length - 1, i + 1))}
-              disabled={isLast}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Next
-            </button>
+            {!isLast && (
+              <button
+                type="button"
+                onClick={() => setStepIndex((i) => Math.min(IFLP_STEPS.length - 1, i + 1))}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105"
+              >
+                Next
+              </button>
+            )}
           </div>
         </div>
       </div>
