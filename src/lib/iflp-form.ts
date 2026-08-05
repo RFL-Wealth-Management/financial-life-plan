@@ -627,8 +627,9 @@ function formatCurrency(n: number | null): string {
 }
 
 // "$1,200,000 annually" from (1200000, "annually"). No amount -> "" (the
-// frequency alone is meaningless without a number).
-function formatIncome(amount: number | null, frequency: IncomeFrequency): string {
+// frequency alone is meaningless without a number). Exported so the persistence
+// layer stores the identical composed string the document renders.
+export function formatIncome(amount: number | null, frequency: IncomeFrequency): string {
   const money = formatCurrency(amount);
   return money ? `${money} ${frequency}` : "";
 }
