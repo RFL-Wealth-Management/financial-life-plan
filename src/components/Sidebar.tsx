@@ -22,7 +22,6 @@ function menuForRole(role: UserRole): MenuItem[] {
   if (role === "admin") {
     return [
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/reports", label: "Manage Reports" },
       { href: "/users", label: "Manage Users" },
     ];
   }

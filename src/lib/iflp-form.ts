@@ -451,6 +451,13 @@ export interface IflpDocPayload {
   // template's "MONTH 2026" footer styling.
   generationMonth: string;
   generationYear: string;
+  // Final-page "YOUR RFL PLANNER" block — the person generating the document,
+  // resolved from their profile at render time (not entered on the form).
+  // advisorName folds in the position ("NAME, POSITION"), upper-cased to match
+  // the template's styling; email is upper-cased for the same reason.
+  advisorName: string;
+  advisorPhone: string;
+  advisorEmail: string;
   client1Name: string;
   client2Name: string;
   welcomeGreeting: string;
@@ -573,6 +580,25 @@ export interface RetirementIncomeDocRow {
   name: string;
   income: string;
   estate: string;
+}
+
+// The generating user's profile fields, as read from `profiles`. Nullable
+// because the columns are optional; a missing field renders as an empty line.
+export interface AdvisorInfo {
+  name: string | null;
+  position: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+// "DANIEL PESCADOR, ADVISOR" from name + position, matching the template's
+// upper-cased "NAME, DESIGNATION" planner line. Position is appended after a
+// comma (like "…, CFA"); with no name the line is "" so the block stays clean.
+function formatAdvisorName(name: string | null, position: string | null): string {
+  const n = (name ?? "").trim();
+  if (!n) return "";
+  const p = (position ?? "").trim();
+  return (p ? `${n}, ${p}` : n).toUpperCase();
 }
 
 function fullName(c: IflpClient): string {
@@ -705,7 +731,10 @@ function buildGovernmentBenefits(state: IflpFormState): {
   return { rows, total };
 }
 
-export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
+export function buildIflpDocPayload(
+  state: IflpFormState,
+  advisor?: AdvisorInfo
+): IflpDocPayload {
   const c1 = state.client1;
   const c2 = state.client2;
   const c1Full = fullName(c1);
@@ -799,6 +828,9 @@ export function buildIflpDocPayload(state: IflpFormState): IflpDocPayload {
       .toLocaleString("en-US", { month: "long" })
       .toUpperCase(),
     generationYear: String(now.getFullYear()),
+    advisorName: formatAdvisorName(advisor?.name ?? null, advisor?.position ?? null),
+    advisorPhone: (advisor?.phone ?? "").trim(),
+    advisorEmail: (advisor?.email ?? "").trim().toUpperCase(),
     client1Name: c1Full,
     client2Name: c2Full,
     welcomeGreeting,

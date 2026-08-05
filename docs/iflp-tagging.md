@@ -43,6 +43,9 @@ wizard step feeds the payload, or it will simply come out empty (harmless).
 | --- | --- | --- |
 | `Month, 2026` (cover) | `{planMonth}, {planYear}` | planMonth, planYear |
 | `MONTH 2026` (final-page footer) | `{generationMonth} {generationYear}` | generationMonth, generationYear (render-date, upper-cased; **not** the plan date) |
+| `SAMI EL-EID, CFA` (final-page "YOUR RFL PLANNER") | `{advisorName}` | advisorName (generating user's `name` + `, position`, upper-cased) |
+| `289-962-2449` (planner block) | `{advisorPhone}` | advisorPhone (generating user's `phone`) |
+| `SAMI@RFLWEALTH.CA` (planner block) | `{advisorEmail}` | advisorEmail (generating user's `email`, upper-cased) |
 | `Client 1` (cover name) | `{client1Name}` | client1Name |
 | `Client 2` (cover name) | `{client2Name}` | client2Name |
 | `Dear Client 1, Client 2 & family,` | `{welcomeGreeting}` | welcomeGreeting (computed) |

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateIflpBuffer } from "@/lib/docx-service";
 import { buildIflpDocPayload, type IflpFormState } from "@/lib/iflp-form";
 import { savePlan, updatePlan } from "@/lib/iflp-persist";
+import { loadAdvisorInfo } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -65,9 +66,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The document's planner block is stamped with whoever generated it.
+  const advisor = await loadAdvisorInfo(supabase, user.id);
+
   let buffer: Buffer;
   try {
-    buffer = generateIflpBuffer(buildIflpDocPayload(state));
+    buffer = generateIflpBuffer(buildIflpDocPayload(state, advisor));
   } catch (error) {
     console.error("IFLP generation failed:", error);
     return NextResponse.json(
