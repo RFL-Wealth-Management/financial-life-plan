@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "@/components/SessionProvider";
 import {
   TextInput,
   NumberInput,
@@ -52,6 +53,8 @@ export function IflpWizard({
   planId?: string;
 } = {}) {
   const router = useRouter();
+  const { profile } = useSession();
+  const isAdmin = profile.role === "admin";
   const isEditing = Boolean(planId);
   const [state, setState] = useState<IflpFormState>(
     initialState ?? initialIflpFormState
@@ -64,7 +67,8 @@ export function IflpWizard({
   const step = IFLP_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === IFLP_STEPS.length - 1;
-  // Dev-only shortcut — dead-code-eliminated from production builds.
+  // Dev-only shortcut, and admin-only on top of that — a regular user never sees
+  // it even in a dev build. Still dead-code-eliminated from production.
   const isDev = process.env.NODE_ENV === "development";
 
   // Requirements before a document can be generated. Guarded on the button
@@ -253,7 +257,7 @@ export function IflpWizard({
             >
               Back
             </button>
-            {isDev && (
+            {isDev && isAdmin && (
               <button
                 type="button"
                 onClick={() => {

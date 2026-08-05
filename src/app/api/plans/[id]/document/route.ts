@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateIflpBuffer } from "@/lib/docx-service";
 import { buildIflpDocPayload } from "@/lib/iflp-form";
 import { loadPlanState } from "@/lib/iflp-load";
+import { loadAdvisorInfo } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -31,9 +32,12 @@ export async function GET(
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
 
+  // Stamp the planner block with whoever is regenerating the document.
+  const advisor = await loadAdvisorInfo(supabase, user.id);
+
   let buffer: Buffer;
   try {
-    buffer = generateIflpBuffer(buildIflpDocPayload(state));
+    buffer = generateIflpBuffer(buildIflpDocPayload(state, advisor));
   } catch (error) {
     console.error("IFLP regeneration failed:", error);
     return NextResponse.json(

@@ -27,7 +27,9 @@ export default async function AppLayout({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between gap-4 border-b border-foreground/10 px-6 py-3">
-            <ViewToggle />
+            {/* "View as" previews the user sidebar — an admin-only tool. The
+                empty span keeps the email pinned right when it's hidden. */}
+            {profile.role === "admin" ? <ViewToggle /> : <span />}
             <span className="truncate text-xs text-foreground/50">
               {profile.email}
             </span>
