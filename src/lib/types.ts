@@ -113,6 +113,12 @@ export type AccountType =
   | "corporate_fixed";
 export type ContributionFrequency = "monthly" | "annual";
 export type FundingKind = "lump_sum" | "monthly";
+export type RetirementIncomeSource =
+  | "cpp_oas"
+  | "tfsa"
+  | "personal_pension"
+  | "corporate_liquid"
+  | "corporate_fixed";
 
 export interface PlanRow {
   id: string;
@@ -126,6 +132,11 @@ export interface PlanRow {
   success_passive_income: string | null;
   success_liquid_capital: string | null;
   success_net_worth: string | null;
+  // Corporate Fixed Bucket "delivers" metrics (added 20260804000000).
+  corp_fixed_annual_tax_free_income: number | null;
+  corp_fixed_contribution_period_years: number | null;
+  corp_fixed_estate_value: number | null;
+  corp_fixed_total_lifetime_value: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -224,5 +235,23 @@ export interface PlanFundingRow {
   party_id: string | null;
   amount: number | null;
   funding_bucket: string | null;
+  sort_order: number;
+}
+
+export interface PlanAccessToCapitalRow {
+  id: string;
+  plan_id: string;
+  year_offset: number;
+  amount: number | null;
+  sort_order: number;
+}
+
+export interface PlanRetirementIncomeRow {
+  id: string;
+  plan_id: string;
+  source: RetirementIncomeSource;
+  party_id: string | null;
+  annual_income: number | null;
+  estate_value: number | null;
   sort_order: number;
 }

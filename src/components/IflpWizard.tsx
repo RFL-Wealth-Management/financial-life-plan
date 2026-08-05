@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   TextInput,
   NumberInput,
@@ -42,11 +43,23 @@ import {
 } from "@/lib/iflp-form";
 import { mockIflpFormState } from "@/lib/iflp-mock";
 
-export function IflpWizard() {
-  const [state, setState] = useState<IflpFormState>(initialIflpFormState);
+export function IflpWizard({
+  initialState,
+  planId,
+}: {
+  // Prefilled state + the plan being edited. Omitted for a brand-new report.
+  initialState?: IflpFormState;
+  planId?: string;
+} = {}) {
+  const router = useRouter();
+  const isEditing = Boolean(planId);
+  const [state, setState] = useState<IflpFormState>(
+    initialState ?? initialIflpFormState
+  );
   const [stepIndex, setStepIndex] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
 
   const step = IFLP_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
@@ -96,9 +109,13 @@ export function IflpWizard() {
       return;
     }
     setError("");
+    setSaved(false);
     setGenerating(true);
     try {
-      const res = await fetch("/api/generate/iflp", {
+      const endpoint = planId
+        ? `/api/generate/iflp?planId=${encodeURIComponent(planId)}`
+        : "/api/generate/iflp";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state),
@@ -107,6 +124,8 @@ export function IflpWizard() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Generation failed");
       }
+      // The plan was persisted server-side before the document was built.
+      setSaved(true);
       // Stream the returned docx to a download.
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -117,9 +136,13 @@ export function IflpWizard() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      // The plan is saved and the document has downloaded — send the user back
+      // to the dashboard, where the new/updated report now appears. refresh()
+      // re-runs the dashboard's server query so the list is current.
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
       setGenerating(false);
     }
   }
@@ -213,6 +236,12 @@ export function IflpWizard() {
           </p>
         )}
 
+        {saved && !error && (
+          <p className="mt-6 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+            Plan saved. Your document has been downloaded.
+          </p>
+        )}
+
         {/* Nav + generate */}
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-foreground/10 pt-5">
           <div className="flex items-center gap-2">
@@ -240,16 +269,23 @@ export function IflpWizard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={generating || !canGenerate}
-              title={canGenerate ? undefined : generateBlockedReason}
-              className="rounded-lg border border-accent/40 px-4 py-2 text-sm font-semibold text-foreground hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {generating ? "Generating…" : "Generate document"}
-            </button>
-            {!isLast && (
+            {isLast ? (
+              // Final step only: one click persists the whole plan and streams
+              // back the document.
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating || !canGenerate}
+                title={canGenerate ? undefined : generateBlockedReason}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {generating
+                  ? "Saving…"
+                  : isEditing
+                    ? "Update & generate document"
+                    : "Save & generate document"}
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={() => setStepIndex((i) => Math.min(IFLP_STEPS.length - 1, i + 1))}

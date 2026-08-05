@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateIflpBuffer } from "@/lib/docx-service";
 import { buildIflpDocPayload, type IflpFormState } from "@/lib/iflp-form";
+import { savePlan, updatePlan } from "@/lib/iflp-persist";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Generate an IFLP document from the current wizard state and stream it back
- * for download. No persistence and no documents row — this is the "generate at
- * any time to check placement" flow; saving to the plans tables comes later.
+ * Persist an IFLP submission to the plans tables, then generate the document
+ * and stream it back for download. This is the wizard's final-step action:
+ * one click saves the whole form and hands back the .docx. The plan's id is
+ * returned in the `X-Plan-Id` response header.
+ *
+ * With `?planId=<uuid>` the submission updates that existing plan in place
+ * (the Edit flow); without it, a new plan is created.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -44,6 +49,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Persist first: a failure here means the data wasn't saved, so we surface it
+  // rather than silently handing back a document the user thinks was stored.
+  const editingPlanId = request.nextUrl.searchParams.get("planId");
+  let planId: string;
+  try {
+    ({ id: planId } = editingPlanId
+      ? await updatePlan(supabase, state, editingPlanId)
+      : await savePlan(supabase, state));
+  } catch (error) {
+    console.error("IFLP save failed:", error);
+    return NextResponse.json(
+      { error: "Failed to save the plan. Please try again." },
+      { status: 500 }
+    );
+  }
+
   let buffer: Buffer;
   try {
     buffer = generateIflpBuffer(buildIflpDocPayload(state));
@@ -64,6 +85,7 @@ export async function POST(request: NextRequest) {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      "X-Plan-Id": planId,
     },
   });
 }
