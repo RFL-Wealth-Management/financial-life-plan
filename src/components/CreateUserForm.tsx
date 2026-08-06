@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { Plus, UserPlus, X } from "lucide-react";
 import { createUser, type UserFields } from "@/app/actions/users";
 
 const inputClass =
@@ -66,9 +67,10 @@ export function CreateUserForm() {
       <button
         type="button"
         onClick={openDrawer}
-        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:brightness-105 cursor-pointer"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:brightness-105 cursor-pointer"
       >
-        + Add user
+        <Plus size={14} aria-hidden />
+        Add user
       </button>
 
       {/* Backdrop — click to dismiss. */}
@@ -100,17 +102,7 @@ export function CreateUserForm() {
             aria-label="Close"
             className="rounded-lg p-1 text-foreground/50 hover:bg-foreground/5 hover:text-foreground cursor-pointer"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X size={18} aria-hidden />
           </button>
         </header>
 
@@ -195,15 +187,17 @@ export function CreateUserForm() {
               type="button"
               onClick={close}
               disabled={pending}
-              className="rounded-lg border border-foreground/20 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/20 px-3 py-1.5 text-xs text-foreground hover:bg-foreground/5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
+              <X size={14} aria-hidden />
               Cancel
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:brightness-105 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:brightness-105 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
+              <UserPlus size={14} aria-hidden />
               {pending ? "Creating..." : "Create user"}
             </button>
           </div>

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LogIn } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -37,6 +39,9 @@ export default function LoginPage() {
     <main className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <Logo height={56} />
+          </div>
           <h1 className="text-2xl font-heading font-bold text-foreground">
             Financial Life Planner
           </h1>
@@ -102,8 +107,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-accent text-foreground py-2.5 text-sm font-semibold hover:brightness-105 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-accent text-foreground py-2.5 text-sm font-semibold hover:brightness-105 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
           >
+            <LogIn size={16} aria-hidden />
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>

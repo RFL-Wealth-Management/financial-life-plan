@@ -1,6 +1,8 @@
 "use client";
 
+import { LayoutDashboard, Users, type LucideIcon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { Logo } from "@/components/Logo";
 import { useSession } from "@/components/SessionProvider";
 import { LogoutButton } from "@/components/LogoutButton";
 import type { UserRole } from "@/lib/types";
@@ -8,6 +10,7 @@ import type { UserRole } from "@/lib/types";
 interface MenuItem {
   href: string;
   label: string;
+  icon: LucideIcon;
 }
 
 /**
@@ -21,12 +24,12 @@ interface MenuItem {
 function menuForRole(role: UserRole): MenuItem[] {
   if (role === "admin") {
     return [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/users", label: "Manage Users" },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/users", label: "Manage Users", icon: Users },
     ];
   }
 
-  return [{ href: "/dashboard", label: "Dashboard" }];
+  return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
 }
 
 export function Sidebar() {
@@ -34,20 +37,23 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-foreground/10 bg-foreground/[0.02] p-4">
-      <div className="mb-6 px-3 pt-2">
-        <p className="font-heading text-base font-bold leading-tight text-foreground">
-          Financial Life Plan
-        </p>
-        <p className="mt-0.5 text-xs capitalize text-foreground/50">
-          {viewRole}
-        </p>
+      <div className="mb-6 flex flex-col gap-2 px-3 pt-2">
+        <Logo height={40} />
+        <div className="min-w-0">
+          <p className="font-heading text-base font-bold leading-tight text-foreground">
+            Financial Life Plan
+          </p>
+          <p className="mt-0.5 text-xs capitalize text-foreground/50">
+            {viewRole}
+          </p>
+        </div>
       </div>
 
       <nav aria-label="Main">
         <ul className="space-y-1">
           {menuForRole(viewRole).map((item) => (
             <li key={item.href}>
-              <NavLink href={item.href} label={item.label} />
+              <NavLink href={item.href} label={item.label} icon={item.icon} />
             </li>
           ))}
         </ul>

@@ -1,5 +1,7 @@
 "use client";
 
+import { X } from "lucide-react";
+
 interface TagOption {
   label: string;
   value: string;
@@ -72,9 +74,9 @@ export function TagInput({
                     type="button"
                     onClick={() => removeTag(tag)}
                     aria-label={`Remove ${labelFor(tag)}`}
-                    className="text-foreground/40 hover:text-foreground"
+                    className="inline-flex text-foreground/40 hover:text-foreground"
                   >
-                    &times;
+                    <X size={12} aria-hidden />
                   </button>
                 </span>
               </li>

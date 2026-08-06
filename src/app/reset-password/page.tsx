@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -124,8 +125,9 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-accent text-foreground py-2.5 text-sm font-semibold hover:brightness-105 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-accent text-foreground py-2.5 text-sm font-semibold hover:brightness-105 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
           >
+            <Check size={16} aria-hidden />
             {loading ? "Updating..." : "Update password"}
           </button>
         </form>
