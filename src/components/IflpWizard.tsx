@@ -2,6 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  ArrowRight,
+  FileDown,
+  FlaskConical,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useSession } from "@/components/SessionProvider";
 import {
   TextInput,
@@ -253,8 +261,9 @@ export function IflpWizard({
               type="button"
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
               disabled={isFirst}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
             >
+              <ArrowLeft size={16} aria-hidden />
               Back
             </button>
             {isDev && isAdmin && (
@@ -265,8 +274,9 @@ export function IflpWizard({
                   setError("");
                 }}
                 title="Dev only — fill every step with sample data"
-                className="rounded-lg border border-dashed border-foreground/25 px-3 py-2 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-foreground/25 px-3 py-2 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
               >
+                <FlaskConical size={14} aria-hidden />
                 Fill mock data
               </button>
             )}
@@ -281,8 +291,9 @@ export function IflpWizard({
                 onClick={handleGenerate}
                 disabled={generating || !canGenerate}
                 title={canGenerate ? undefined : generateBlockedReason}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
               >
+                <FileDown size={16} aria-hidden />
                 {generating
                   ? "Saving…"
                   : isEditing
@@ -293,9 +304,10 @@ export function IflpWizard({
               <button
                 type="button"
                 onClick={() => setStepIndex((i) => Math.min(IFLP_STEPS.length - 1, i + 1))}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105"
               >
                 Next
+                <ArrowRight size={16} aria-hidden />
               </button>
             )}
           </div>
@@ -412,8 +424,9 @@ function PeopleStep({
                   type="button"
                   onClick={() => removeChild(i)}
                   aria-label={`Remove child ${i + 1}`}
-                  className="mb-1 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                  className="mb-1 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
                 >
+                  <Trash2 size={14} aria-hidden />
                   Remove
                 </button>
               </div>
@@ -424,9 +437,10 @@ function PeopleStep({
         <button
           type="button"
           onClick={addChild}
-          className="rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
         >
-          + Add child
+          <Plus size={16} aria-hidden />
+          Add child
         </button>
       </fieldset>
 
@@ -1198,8 +1212,9 @@ function AddRemoveRow({
         <button
           type="button"
           onClick={onRemove}
-          className="rounded-lg px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
         >
+          <Trash2 size={13} aria-hidden />
           Remove
         </button>
       </div>
@@ -1213,9 +1228,10 @@ function AddRowButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
     >
-      + Add row
+      <Plus size={16} aria-hidden />
+      Add row
     </button>
   );
 }

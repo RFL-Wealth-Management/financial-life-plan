@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Check, Pencil, X } from "lucide-react";
 import { updateUser, type UserFields } from "@/app/actions/users";
 import { RoleSelect } from "@/components/RoleSelect";
 import type { UserRole } from "@/lib/types";
@@ -119,16 +120,18 @@ export function UserRow({
             type="button"
             onClick={cancel}
             disabled={pending}
-            className="rounded-lg border border-foreground/20 px-3 py-1 text-xs text-foreground hover:bg-foreground/5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/20 px-3 py-1 text-xs text-foreground hover:bg-foreground/5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
+            <X size={14} aria-hidden />
             Cancel
           </button>
           <button
             type="button"
             onClick={save}
             disabled={pending}
-            className="rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-foreground hover:brightness-105 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-foreground hover:brightness-105 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
+            <Check size={14} aria-hidden />
             {pending ? "Saving..." : "Save"}
           </button>
         </div>
@@ -161,8 +164,9 @@ export function UserRow({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="rounded-lg border border-foreground/20 px-3 py-1 text-xs text-foreground hover:bg-foreground/5 cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/20 px-3 py-1 text-xs text-foreground hover:bg-foreground/5 cursor-pointer"
         >
+          <Pencil size={14} aria-hidden />
           Edit
         </button>
       </div>

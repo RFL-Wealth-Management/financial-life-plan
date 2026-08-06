@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pencil, RefreshCw } from "lucide-react";
 
 // Format a timestamp identically on the server and the client. Bare
 // toLocaleDateString() uses the runtime's locale + timezone, which differ
@@ -64,14 +65,16 @@ export function PlanList({
           <div className="flex shrink-0 items-center gap-3 text-xs">
             <Link
               href={`/reports/${plan.id}/edit`}
-              className="text-foreground/50 transition-colors hover:text-foreground/80"
+              className="inline-flex items-center gap-1.5 text-foreground/50 transition-colors hover:text-foreground/80"
             >
+              <Pencil size={13} aria-hidden />
               Edit
             </Link>
             <a
               href={`/api/plans/${plan.id}/document`}
-              className="rounded-lg border border-accent/40 px-3 py-1.5 font-medium text-foreground transition hover:bg-accent/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-1.5 font-medium text-foreground transition hover:bg-accent/10"
             >
+              <RefreshCw size={13} aria-hidden />
               Regenerate
             </a>
           </div>

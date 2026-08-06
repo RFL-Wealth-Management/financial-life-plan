@@ -3,6 +3,7 @@ export type UserRole = "admin" | "user";
 export interface Profile {
   id: string;
   email: string;
+  name: string | null;
   role: UserRole;
   createdAt: string;
 }

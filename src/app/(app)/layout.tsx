@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { User } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { SessionProvider } from "@/components/SessionProvider";
 import { Sidebar } from "@/components/Sidebar";
@@ -30,8 +31,9 @@ export default async function AppLayout({
             {/* "View as" previews the user sidebar — an admin-only tool. The
                 empty span keeps the email pinned right when it's hidden. */}
             {profile.role === "admin" ? <ViewToggle /> : <span />}
-            <span className="truncate text-xs text-foreground/50">
-              {profile.email}
+            <span className="inline-flex items-center gap-1.5 truncate text-xs text-foreground/50">
+              <User size={14} aria-hidden />
+              {profile.name?.trim() || profile.email}
             </span>
           </header>
 
