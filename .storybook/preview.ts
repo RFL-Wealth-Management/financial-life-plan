@@ -4,12 +4,14 @@ import "../src/app/globals.css";
 const preview: Preview = {
   parameters: {
     backgrounds: {
-      default: "fflp",
-      values: [
-        { name: "fflp", value: "#FFFEF4" },
-        { name: "white", value: "#ffffff" },
-      ],
+      options: {
+        fflp: { name: "fflp", value: "#FFFEF4" },
+        white: { name: "white", value: "#ffffff" },
+      },
     },
+  },
+  initialGlobals: {
+    backgrounds: { value: "fflp" },
   },
 };
 
