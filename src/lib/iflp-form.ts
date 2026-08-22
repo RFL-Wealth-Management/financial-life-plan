@@ -646,8 +646,9 @@ function formatNameList(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${last}`;
 }
 
-// "$285,000" from 285000. Null -> "".
-function formatCurrency(n: number | null): string {
+// "$285,000" from 285000. Null -> "". Exported so the FFLP payload builder
+// formats its currency fields identically (see src/lib/fflp-form.ts).
+export function formatCurrency(n: number | null): string {
   if (n == null || Number.isNaN(n)) return "";
   return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }

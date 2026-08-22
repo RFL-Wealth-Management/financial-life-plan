@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   FileDown,
+  FileText,
   FlaskConical,
   Plus,
   Trash2,
@@ -71,6 +72,10 @@ export function IflpWizard({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // The plan id to hand off to the FFLP form. Known up-front when editing;
+  // captured from the save response (X-Plan-Id) for a brand-new plan. Gates the
+  // "Continue to FFLP" button — you can only build an FFLP once the IFLP exists.
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(planId ?? null);
 
   const step = IFLP_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
@@ -136,8 +141,12 @@ export function IflpWizard({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Generation failed");
       }
-      // The plan was persisted server-side before the document was built.
+      // The plan was persisted server-side before the document was built. Capture
+      // its id (new plans return it in X-Plan-Id) so the "Continue to FFLP"
+      // handoff knows which plan to open.
       setSaved(true);
+      const returnedId = res.headers.get("X-Plan-Id");
+      if (returnedId) setSavedPlanId(returnedId);
       // Stream the returned docx to a download.
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -148,10 +157,10 @@ export function IflpWizard({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      // The plan is saved and the document has downloaded — send the user back
-      // to the dashboard, where the new/updated report now appears. refresh()
-      // re-runs the dashboard's server query so the list is current.
-      router.push("/dashboard");
+      // Stay on the wizard so the user can continue to the FFLP form; the saved
+      // banner confirms the plan was stored and the document downloaded.
+      // refresh() re-runs server queries so lists elsewhere stay current.
+      setGenerating(false);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -285,21 +294,41 @@ export function IflpWizard({
           <div className="flex items-center gap-3">
             {isLast ? (
               // Final step only: one click persists the whole plan and streams
-              // back the document.
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={generating || !canGenerate}
-                title={canGenerate ? undefined : generateBlockedReason}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FileDown size={16} aria-hidden />
-                {generating
-                  ? "Saving…"
-                  : isEditing
-                    ? "Update & generate document"
-                    : "Save & generate document"}
-              </button>
+              // back the document. Once the plan exists (editing, or just saved)
+              // the user can continue to the FFLP form — gated on savedPlanId so
+              // an FFLP can only be built on top of a stored IFLP.
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    savedPlanId && router.push(`/reports/${savedPlanId}/fflp`)
+                  }
+                  disabled={!savedPlanId}
+                  title={
+                    savedPlanId
+                      ? undefined
+                      : "Generate the IFLP first to unlock the FFLP."
+                  }
+                  className="inline-flex items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FileText size={16} aria-hidden />
+                  Continue to FFLP
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={generating || !canGenerate}
+                  title={canGenerate ? undefined : generateBlockedReason}
+                  className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FileDown size={16} aria-hidden />
+                  {generating
+                    ? "Saving…"
+                    : isEditing
+                      ? "Update & generate document"
+                      : "Save & generate document"}
+                </button>
+              </>
             ) : (
               <button
                 type="button"

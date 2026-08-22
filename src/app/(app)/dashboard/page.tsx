@@ -31,7 +31,9 @@ export default async function DashboardPage() {
   // the client name(s) for the list. RLS scopes both the plans and the embed.
   const { data: plans } = await supabase
     .from("plans")
-    .select("id, created_at, owner_id, plan_parties(display_name, party_type, sort_order)")
+    .select(
+      "id, created_at, owner_id, plan_parties(display_name, party_type, sort_order), plan_fflp(plan_id)"
+    )
     .order("created_at", { ascending: false })
     .limit(FETCH_LIMIT);
 
@@ -39,12 +41,18 @@ export default async function DashboardPage() {
     const clients = ((plan.plan_parties as PartyRow[]) ?? [])
       .filter((p) => p.party_type === "client")
       .sort((a, b) => a.sort_order - b.sort_order);
+    // plan_fflp is 1:1, so the embed is an array with zero or one row — its
+    // presence means the plan already has an FFLP.
+    const hasFflp = Array.isArray(plan.plan_fflp)
+      ? plan.plan_fflp.length > 0
+      : Boolean(plan.plan_fflp);
     return {
       id: plan.id as string,
       client1Name: clients[0]?.display_name ?? "Untitled plan",
       client2Name: clients[1]?.display_name ?? null,
       createdAt: plan.created_at as string,
       ownerId: plan.owner_id as string,
+      hasFflp,
     };
   });
 

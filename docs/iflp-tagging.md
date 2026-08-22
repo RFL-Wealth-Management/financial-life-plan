@@ -1,7 +1,7 @@
 # IFLP template tagging
 
 How the IFLP Word template gets filled with form data. Same mechanism as
-`fflp-template.docx`: docxtemplater replaces `{tags}` in the document with values.
+`fflp.tagged.docx`: docxtemplater replaces `{tags}` in the document with values.
 
 ## Two files
 
@@ -13,6 +13,23 @@ How the IFLP Word template gets filled with form data. Same mechanism as
 There is **no build script**. You tag by hand in Word — this is deliberate: it
 matches how FFLP already works, needs no toolchain, and the repeating-table loops
 (below) are far easier to place by hand than to generate.
+
+### Tagging without Word — the unpacked-XML method
+
+When Word isn't available (as in the environment where the FFLP template was tagged),
+tags can be inserted **programmatically on the unpacked XML** instead — same end result:
+
+1. A `.docx` is a zip; unzip it and open `word/document.xml`.
+2. Replace the sample-text run with the `{tag}`, keeping the tag inside a **single
+   `<w:t>` run** — e.g. `<w:r><w:t>60</w:t></w:r>` → `<w:r><w:t>{retirementAge}</w:t></w:r>`.
+   If the sample value is split across runs (autocorrect, styling), merge them into one
+   run first or docxtemplater won't see the tag.
+3. Re-zip via PizZip (the same lib `docx-service` reads with) so no other part changes.
+4. Regenerate a report to confirm the value lands.
+
+This is how `templates/fflp.tagged.docx` was tagged (see `docs/fflp-tagging.md`); the
+same method works for re-tagging this IFLP template when Word isn't at hand. The
+single-run rule below still applies either way.
 
 ## Workflow
 
