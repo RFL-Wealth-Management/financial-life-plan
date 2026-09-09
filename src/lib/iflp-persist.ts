@@ -37,6 +37,7 @@ interface PlanPayload {
   plan: Row;
   parties: Row[];
   children: Row[];
+  other_priorities: Row[];
   retirement_buckets: Row[];
   monthly_savings: Row[];
   income_alignment: Row[];
@@ -143,13 +144,26 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
   const perClient = <T extends Row>(fn: (c: IflpClient, key: PartyKey, i: number) => T): T[] =>
     clients.map((p, i) => fn(records[i], p.key, i));
 
-  // plan_children — only children the planner actually named.
+  // plan_children — only children the planner actually named. A first name is
+  // what makes a child "named"; the last name is optional, like the clients'.
   const children: Row[] = state.children
     .filter((c) => c.firstName.trim())
     .map((c, i) => ({
-      name: c.firstName.trim(),
+      first_name: c.firstName.trim(),
+      last_name: trimOrNull(c.lastName),
       education_cost: c.educationCost,
       education_years_away: c.educationYearsAway,
+      sort_order: i,
+    }));
+
+  // plan_other_priorities — the planner's own priorities, name + desired
+  // outcome. A name is what makes a row (matching plan_children); a row with
+  // only an outcome has nothing to label it and is dropped.
+  const other_priorities: Row[] = state.otherPriorities
+    .filter((op) => op.name.trim())
+    .map((op, i) => ({
+      name: op.name.trim(),
+      outcome: trimOrNull(op.outcome),
       sort_order: i,
     }));
 
@@ -170,10 +184,13 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     { label: "Corporate Fixed Bucket", amount: ms.corpFixed },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
-  // plan_income_alignment — one row per client.
+  // plan_income_alignment — one row per client. `amount` is whichever structure
+  // the client draws; income_type says which one, so a dividend figure is never
+  // read back as a salary.
   const income_alignment: Row[] = perClient((c, key, i) => ({
     party_id: partyId(key),
-    amount: c.incomeAlignmentSalary,
+    amount: c.incomeAlignmentAmount,
+    income_type: c.incomeStructure,
     sort_order: i,
   }));
 
@@ -354,6 +371,7 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     plan: buildPlan(state),
     parties,
     children,
+    other_priorities,
     retirement_buckets,
     monthly_savings,
     income_alignment,

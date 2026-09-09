@@ -35,6 +35,7 @@ const PLAN_SELECT = `
   *,
   plan_parties(*),
   plan_children(*),
+  plan_other_priorities(*),
   plan_retirement_buckets(*),
   plan_monthly_savings(*),
   plan_income_alignment(*),
@@ -127,10 +128,19 @@ export async function loadPlanState(
 
   // --- Children --------------------------------------------------------------
   state.children = bySort((plan.plan_children as AnyRow[]) ?? []).map((r) => ({
-    firstName: (r.name as string) ?? "",
+    firstName: (r.first_name as string) ?? "",
+    lastName: (r.last_name as string) ?? "",
     age: null, // not persisted
     educationCost: (r.education_cost as number) ?? null,
     educationYearsAway: (r.education_years_away as number) ?? null,
+  }));
+
+  // --- Other priorities ------------------------------------------------------
+  state.otherPriorities = bySort(
+    (plan.plan_other_priorities as AnyRow[]) ?? []
+  ).map((r) => ({
+    name: (r.name as string) ?? "",
+    outcome: (r.outcome as string) ?? "",
   }));
 
   // --- Retirement buckets (fixed order: gov, personal, corpLiquid, corpFixed) -
@@ -154,7 +164,11 @@ export async function loadPlanState(
   // --- Income alignment + government benefits (per client) -------------------
   for (const r of (plan.plan_income_alignment as AnyRow[]) ?? []) {
     const c = clientFor(keyOf(r.party_id));
-    if (c) c.incomeAlignmentSalary = (r.amount as number) ?? null;
+    if (!c) continue;
+    c.incomeAlignmentAmount = (r.amount as number) ?? null;
+    // Rows written before income_type existed are salary (see the migration),
+    // and so is anything unrecognised.
+    c.incomeStructure = r.income_type === "dividend" ? "dividend" : "salary";
   }
   for (const r of (plan.plan_government_benefits as AnyRow[]) ?? []) {
     const c = clientFor(keyOf(r.party_id));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import {
 } from "@/components/fields";
 import {
   priorityOptions,
+  incomeStructureOptions,
   incomeFrequencyOptions,
   termLengthOptions,
   criticalIllnessProductOptions,
@@ -34,14 +35,17 @@ import {
   IFLP_STEPS,
   initialIflpFormState,
   emptyChild,
+  emptyOtherPriority,
   emptyTransferRow,
   emptyFundingRow,
   deriveClients,
   partyOptions,
   type IflpChild,
   type IflpClient,
+  type OtherPriority,
   type IflpFormState,
   type IncomeFrequency,
+  type IncomeStructure,
   type RetirementBucketsInput,
   type AccessToCapitalInput,
   type RetirementIncomeInput,
@@ -68,6 +72,10 @@ export function IflpWizard({
     initialState ?? initialIflpFormState
   );
   const [stepIndex, setStepIndex] = useState(0);
+  // Each step is a fresh page of the form, so moving between them scrolls back
+  // to the step header. Without this the planner lands mid-form on the next
+  // step, at whatever offset the previous one was scrolled to.
+  const topRef = useRef<HTMLDivElement>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -93,6 +101,14 @@ export function IflpWizard({
       : "";
   const canGenerate = generateBlockedReason === "";
 
+  // The single way to change steps: set the index, then anchor to the top.
+  // scrollIntoView rather than window.scrollTo, so it keeps working if the form
+  // ever moves into its own scroll container.
+  function goToStep(next: number) {
+    setStepIndex(Math.min(Math.max(next, 0), IFLP_STEPS.length - 1));
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function patch(update: Partial<IflpFormState>) {
     setState((s) => ({ ...s, ...update }));
   }
@@ -112,6 +128,26 @@ export function IflpWizard({
     setState((s) => ({
       ...s,
       children: s.children.filter((_, i) => i !== index),
+    }));
+  }
+  function addOtherPriority() {
+    setState((s) => ({
+      ...s,
+      otherPriorities: [...s.otherPriorities, { ...emptyOtherPriority }],
+    }));
+  }
+  function updateOtherPriority(index: number, update: Partial<OtherPriority>) {
+    setState((s) => ({
+      ...s,
+      otherPriorities: s.otherPriorities.map((p, i) =>
+        i === index ? { ...p, ...update } : p
+      ),
+    }));
+  }
+  function removeOtherPriority(index: number) {
+    setState((s) => ({
+      ...s,
+      otherPriorities: s.otherPriorities.filter((_, i) => i !== index),
     }));
   }
 
@@ -161,7 +197,7 @@ export function IflpWizard({
 
   return (
     <main className="flex-1 p-6">
-      <div className="mx-auto w-full max-w-2xl">
+      <div ref={topRef} className="mx-auto w-full max-w-2xl scroll-mt-6">
         {/* Progress */}
         <ol className="mb-8 flex items-stretch gap-2">
           {IFLP_STEPS.map((s, i) => {
@@ -171,7 +207,7 @@ export function IflpWizard({
               <li key={s.id} className="flex flex-1 flex-col gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setStepIndex(i)}
+                  onClick={() => goToStep(i)}
                   className={`text-left text-[11px] leading-tight transition-colors ${
                     active
                       ? "text-foreground font-medium"
@@ -214,6 +250,9 @@ export function IflpWizard({
               addChild={addChild}
               updateChild={updateChild}
               removeChild={removeChild}
+              addOtherPriority={addOtherPriority}
+              updateOtherPriority={updateOtherPriority}
+              removeOtherPriority={removeOtherPriority}
             />
           ) : step.id === "goals" ? (
             <GoalsStep state={state} patch={patch} />
@@ -259,7 +298,7 @@ export function IflpWizard({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              onClick={() => goToStep(stepIndex - 1)}
               disabled={isFirst}
               className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-foreground/70 hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -303,7 +342,7 @@ export function IflpWizard({
             ) : (
               <button
                 type="button"
-                onClick={() => setStepIndex((i) => Math.min(IFLP_STEPS.length - 1, i + 1))}
+                onClick={() => goToStep(stepIndex + 1)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-foreground hover:brightness-105"
               >
                 Next
@@ -324,6 +363,9 @@ function PeopleStep({
   addChild,
   updateChild,
   removeChild,
+  addOtherPriority,
+  updateOtherPriority,
+  removeOtherPriority,
 }: {
   state: IflpFormState;
   patch: (u: Partial<IflpFormState>) => void;
@@ -331,6 +373,9 @@ function PeopleStep({
   addChild: () => void;
   updateChild: (index: number, u: Partial<IflpChild>) => void;
   removeChild: (index: number) => void;
+  addOtherPriority: () => void;
+  updateOtherPriority: (index: number, u: Partial<OtherPriority>) => void;
+  removeOtherPriority: (index: number) => void;
 }) {
   return (
     <>
@@ -406,12 +451,18 @@ function PeopleStep({
           <div className="space-y-3">
             {state.children.map((child, i) => (
               <div key={i} className="flex items-end gap-3">
-                <div className="grid flex-1 grid-cols-2 gap-3">
+                <div className="grid flex-1 grid-cols-3 gap-3">
                   <TextInput
                     id={`child-${i}-first`}
                     label="First name"
                     value={child.firstName}
                     onChange={(firstName) => updateChild(i, { firstName })}
+                  />
+                  <TextInput
+                    id={`child-${i}-last`}
+                    label="Last name"
+                    value={child.lastName}
+                    onChange={(lastName) => updateChild(i, { lastName })}
                   />
                   <NumberInput
                     id={`child-${i}-age`}
@@ -466,6 +517,65 @@ function PeopleStep({
           onChange={(priorities) => patch({ priorities })}
           placeholder="Select priorities…"
         />
+
+        {/* The document's Priorities table is Priority | Desired Outcome, and
+            its six standard rows are fixed copy in the template. A priority the
+            list above doesn't cover therefore needs both halves to become a row
+            of its own — the name alone has nothing to sit beside it. */}
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-foreground/70">
+            Other priorities{" "}
+            <span className="font-normal text-foreground/50">(optional)</span>
+          </p>
+
+          {state.otherPriorities.length === 0 ? (
+            <p className="text-sm text-foreground/50">
+              None added. Each one becomes an extra row in the plan’s
+              “Your&nbsp;Priorities” table.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {state.otherPriorities.map((priority, i) => (
+                <div key={i} className="flex items-end gap-3">
+                  <div className="grid flex-1 grid-cols-2 gap-3">
+                    <TextInput
+                      id={`other-priority-${i}-name`}
+                      label="Priority"
+                      value={priority.name}
+                      onChange={(name) => updateOtherPriority(i, { name })}
+                      placeholder="Charitable giving"
+                    />
+                    <TextInput
+                      id={`other-priority-${i}-outcome`}
+                      label="Desired outcome"
+                      value={priority.outcome}
+                      onChange={(outcome) => updateOtherPriority(i, { outcome })}
+                      placeholder="Fund an annual gift without reducing retirement income"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeOtherPriority(i)}
+                    aria-label={`Remove priority ${i + 1}`}
+                    className="mb-1 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                  >
+                    <Trash2 size={14} aria-hidden />
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={addOtherPriority}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
+          >
+            <Plus size={16} aria-hidden />
+            Add priority
+          </button>
+        </div>
       </fieldset>
     </>
   );
@@ -766,19 +876,35 @@ function RetirementStep({
           clients.map((p) => {
             const key = p.key as "client1" | "client2";
             const c = clientFor(key);
+            // Salary and dividends are alternatives, not a split: picking one
+            // decides which half of the document's Income Alignment section this
+            // client fills, so there is a single amount field and its label
+            // follows the choice.
+            const isDividend = c.incomeStructure === "dividend";
             return (
               <div key={key} className="space-y-2">
                 <p className="text-xs font-medium text-foreground/70">{p.name}</p>
-                <CurrencyInput
-                  id={`${key}-salary`}
-                  label="Salary"
-                  prefix="$"
-                  value={c.incomeAlignmentSalary}
-                  onChange={(incomeAlignmentSalary) =>
-                    patchClient(key, { incomeAlignmentSalary })
-                  }
-                  placeholder="150,000"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <SelectInput
+                    id={`${key}-income-structure`}
+                    label="Income structure"
+                    options={incomeStructureOptions}
+                    value={c.incomeStructure}
+                    onChange={(v) =>
+                      patchClient(key, { incomeStructure: v as IncomeStructure })
+                    }
+                  />
+                  <CurrencyInput
+                    id={`${key}-income-amount`}
+                    label={isDividend ? "Dividends" : "Salary"}
+                    prefix="$"
+                    value={c.incomeAlignmentAmount}
+                    onChange={(incomeAlignmentAmount) =>
+                      patchClient(key, { incomeAlignmentAmount })
+                    }
+                    placeholder="150,000"
+                  />
+                </div>
               </div>
             );
           })

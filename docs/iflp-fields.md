@@ -61,7 +61,8 @@ Two tables violate this — see [Template fixes needed](#template-fixes-needed).
 | Client 1 age | `Age 00` | `NumberInput` | Required |
 | Client 2 age | — | `NumberInput` | **Optional.** Not highlighted in the template, but required by the data model |
 | Household income | `$00,000` | `CurrencyInput` | |
-| Priorities | `Retirement, Tax Efficiency, Education, Protection` | `TagInput` | Multi-select. Options render below the field; clicking one adds it as a tag |
+| Priorities | `Retirement, Tax Efficiency, Education, Protection` | `TagInput` | Multi-select. Options render below the field; clicking one adds it as a tag. Feeds the Profile summary line only |
+| Other priorities | — | `TextInput` ×2, add/remove rows | **Priority** + **Desired outcome**, because that's what the document's Priorities table needs to build a row. Name required; blank outcome renders an empty cell |
 | Profile narrative names | `Client and Client are in a strong…` | *Derived* | |
 
 ## 3. Your Priorities
@@ -69,10 +70,12 @@ Two tables violate this — see [Template fixes needed](#template-fixes-needed).
 | Field | Placeholder | Input |
 | --- | --- | --- |
 | Target independence age | `by age 00` | `NumberInput` |
-| Child 1 name | `Child` | `TextInput` |
-| Child 2 name | `Child's` | `TextInput` |
+| Child 1 first / last name | `Child` | `TextInput` ×2 |
+| Child 2 first / last name | `Child's` | `TextInput` ×2 |
 
-Possessive (`Child's`) is rendered, not stored.
+Possessive (`Child's`) is rendered, not stored. The possessive and prose lists
+use first names only (`Emma and Liam's`); the Profile `{children}` line uses the
+full name with age (`Emma Chen (10), Liam Chen (7)`).
 
 ## 4. What Success Looks Like
 
@@ -122,8 +125,13 @@ Five bucket rows. Each row: a contribution and an annual figure (`$00,000/year`)
 
 | Field | Input | Notes |
 | --- | --- | --- |
-| Client (per row) | `SelectInput` | Client 1 / Client 2 / corporation |
-| Amount (per row) | `CurrencyInput` | Two rows |
+| Client (per row) | *Derived* | One row per named client, from step 1 |
+| Income structure (per row) | `SelectInput` | **Salary** or **Dividends** — per client, not per plan |
+| Amount (per row) | `CurrencyInput` | Whichever structure the client draws; label follows the choice |
+
+Salary and dividends are alternatives, not a split, so there is one amount field
+per client. The choice drives the section's copy in the document — see the
+Income Alignment table in [iflp-tagging.md](iflp-tagging.md).
 
 ## 7. Monthly Savings Allocation — **Table**
 

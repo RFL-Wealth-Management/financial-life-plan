@@ -69,15 +69,25 @@ export const incomeFrequencyOptions: FieldOption[] = [
   { label: "Annually", value: "annually" },
 ];
 
-// The "Your Priorities" TagInput list. Closed set from the template placeholder
-// "Retirement, Tax Efficiency, Education, Protection", plus the extras already
-// used in the Storybook story. Free-text-ish (stored as plans.priorities text[]),
-// so extend freely.
+// The "Your Priorities" TagInput list. Suggested set from the template
+// placeholder "Retirement, Tax Efficiency, Education, Protection", plus the
+// extras already used in the Storybook story. Not closed: the TagInput's
+// "Other" box adds free text alongside these, and the column that backs it
+// (plans.priorities text[]) takes any string, so extend freely.
 export const priorityOptions: FieldOption[] = [
   { label: "Retirement", value: "retirement" },
   { label: "Tax Efficiency", value: "tax-efficiency" },
   { label: "Education", value: "education" },
   { label: "Protection", value: "protection" },
+];
+
+// How a client draws income from the corporation, chosen per client in step 3.
+// The choice decides which half of the document's Income Alignment section is
+// populated, so the value doubles as the discriminator in IflpClient
+// (`incomeStructure`) and in plan_income_alignment.income_type.
+export const incomeStructureOptions: FieldOption[] = [
+  { label: "Salary", value: "salary" },
+  { label: "Dividends", value: "dividend" },
 ];
 
 // ---------------------------------------------------------------------------
