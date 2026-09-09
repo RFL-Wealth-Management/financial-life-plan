@@ -6,6 +6,8 @@
 // builder here, then hand-tag the matching {tags} in templates/iflp.tagged.docx
 // (see docs/iflp-tagging.md).
 
+import { priorityOptions } from "@/lib/field-options";
+
 // ---------------------------------------------------------------------------
 // Form state. Field value types match the Storybook field components
 // (src/components/fields) so they bind directly: numbers where the component
@@ -21,7 +23,11 @@ export interface IflpClient {
   // Mirrors the persisted Client shape in types.ts.
   cppAmount: number | null;
   oasAmount: number | null;
-  incomeAlignmentSalary: number | null;
+  // Step 3 — Income Alignment. `incomeStructure` picks which half of the
+  // document's Income Alignment section this client populates; the amount is
+  // whichever one they draw, so only the chosen structure is ever filled.
+  incomeStructure: IncomeStructure;
+  incomeAlignmentAmount: number | null;
   // Step 4 — registered accounts (contribution + projected value, per client).
   tfsaContribution: number | null;
   tfsaEstimatedValue: number | null;
@@ -105,8 +111,18 @@ export interface CorporateAccountsInput {
   fixedTotalLifetimeValue: number | null;
 }
 
+// A priority the option list doesn't cover, entered by the planner. The
+// document's "Your Priorities" table is Priority | Desired Outcome, and its six
+// standard rows are fixed copy in the template — so a custom priority needs
+// BOTH halves to become a row of its own.
+export interface OtherPriority {
+  name: string;
+  outcome: string;
+}
+
 export interface IflpChild {
   firstName: string;
+  lastName: string;
   age: number | null;
   // Step 4 — Education funding, per child.
   educationCost: number | null;
@@ -136,7 +152,12 @@ export interface IflpFormState {
   children: IflpChild[];
   corporationName: string;
   householdIncome: number | null;
+  // Preset priorities, as option values from `priorityOptions`. These drive the
+  // Profile summary line only — the Priorities table's standard rows are fixed
+  // copy in the template and render regardless.
   priorities: string[];
+  // Planner-entered priorities, each appended to that table as an extra row.
+  otherPriorities: OtherPriority[];
   // Step 2 — Goals & Success
   // The age at which the plan targets financial independence. Also drives the
   // Profile "Retirement Goal" row.
@@ -174,13 +195,19 @@ export interface IflpFormState {
 // rendered in the document, so keep it in sync with incomeFrequencyOptions.
 export type IncomeFrequency = "bi-weekly" | "monthly" | "annually";
 
+// How a client draws income from the corporation. Keep in sync with
+// incomeStructureOptions in field-options.ts and the plan_income_alignment
+// .income_type column.
+export type IncomeStructure = "salary" | "dividend";
+
 export const emptyClient: IflpClient = {
   firstName: "",
   lastName: "",
   age: null,
   cppAmount: null,
   oasAmount: null,
-  incomeAlignmentSalary: null,
+  incomeStructure: "salary",
+  incomeAlignmentAmount: null,
   tfsaContribution: null,
   tfsaEstimatedValue: null,
   rrspContribution: null,
@@ -196,8 +223,14 @@ export const emptyClient: IflpClient = {
   disabilityBenefitTerm: "To Age 65",
 };
 
+export const emptyOtherPriority: OtherPriority = {
+  name: "",
+  outcome: "",
+};
+
 export const emptyChild: IflpChild = {
   firstName: "",
+  lastName: "",
   age: null,
   educationCost: null,
   educationYearsAway: null,
@@ -212,6 +245,7 @@ export const initialIflpFormState: IflpFormState = {
   corporationName: "",
   householdIncome: null,
   priorities: [],
+  otherPriorities: [],
   targetIndependenceAge: null,
   retirementIncomeAmount: null,
   retirementIncomeFrequency: "annually",
@@ -391,10 +425,13 @@ export interface GovernmentBenefitRow {
   oas: string;
 }
 
-// One rendered row of the Income Alignment table (Client | Salary).
+// One rendered row of the Income Alignment table (Client | Salary-or-Dividends).
+// `amount` is whichever structure the client draws; on a mixed plan it carries a
+// "(Salary)" / "(Dividends)" suffix, because the single column header can no
+// longer say which one it is.
 export interface IncomeAlignmentRow {
   name: string;
-  salary: string;
+  amount: string;
 }
 
 // One rendered row of a registered-account table (TFSA/RRSP/PPP): a client name,
@@ -466,6 +503,10 @@ export interface IflpDocPayload {
   client1Age: string;
   householdIncome: string;
   priorities: string;
+  // Extra rows for the "Your Priorities" table, looped in the template as
+  // {#otherPriorities}<cell>{name}</cell> <cell>{outcome}</cell>{/otherPriorities}
+  // directly after the six standard rows. Empty -> the table is unchanged.
+  otherPriorities: OtherPriority[];
   children: string;
   // Subject + verb for the intro sentence, agreeing with client count:
   // "Dan and Sam are" (two clients) or "Dan is" (one). The template supplies
@@ -491,8 +532,16 @@ export interface IflpDocPayload {
   // from step 1 and the total is summed here (auto-computed, not entered).
   governmentBenefits: GovernmentBenefitRow[];
   governmentBenefitsTotal: string;
-  // Step 3 — Income Alignment (Client | Salary), one row per client.
+  // Step 3 — Income Alignment, one row per client. Each client draws either a
+  // salary or dividends (IflpClient.incomeStructure), and the section's copy
+  // follows the plan's composition rather than assuming salary:
+  //   incomeStructureLabel  — the amount column's header
+  //   incomeStructureNoun   — the noun in the two prose sentences
+  //   incomeRecommendation  — the whole Recommendation sentence
   incomeAlignment: IncomeAlignmentRow[];
+  incomeStructureLabel: string;
+  incomeStructureNoun: string;
+  incomeRecommendation: string;
   // Step 3 — Retirement Buckets (fixed rows; "annual" values carry a "/year"
   // suffix; totals are summed here). Government has no monthly contribution.
   bucketGovernmentAnnual: string;
@@ -609,21 +658,29 @@ function hasClient(c: IflpClient): boolean {
   return Boolean(c.firstName.trim() || c.lastName.trim());
 }
 
-// Renders children as "Emma (10), Liam (7)" for the {children} tag. Kids with
-// no name are skipped; a named child with no age falls back to just the name.
-// No children -> "".
+// A child's full name, "Emma Chen" — or just "Emma" when no last name was
+// entered. A child with no first name at all is treated as unnamed everywhere.
+function childFullName(c: IflpChild): string {
+  return [c.firstName.trim(), c.lastName.trim()].filter(Boolean).join(" ");
+}
+
+// Renders children as "Emma Chen (10), Liam Chen (7)" for the {children} tag.
+// Kids with no first name are skipped; a named child with no age falls back to
+// just the name. No children -> "".
 function formatChildren(children: IflpChild[]): string {
   return children
     .map((c) => {
-      const name = c.firstName.trim();
-      if (!name) return "";
+      if (!c.firstName.trim()) return "";
+      const name = childFullName(c);
       return c.age == null ? name : `${name} (${c.age})`;
     })
     .filter(Boolean)
     .join(", ");
 }
 
-// Named (non-empty) child first names, in order.
+// Named (non-empty) child first names, in order. First names only: these feed
+// the possessive/prose lists ("Emma and Liam's education"), where a surname
+// would read stiffly.
 function childNames(children: IflpChild[]): string[] {
   return children.map((c) => c.firstName.trim()).filter(Boolean);
 }
@@ -731,6 +788,91 @@ function buildGovernmentBenefits(state: IflpFormState): {
   return { rows, total };
 }
 
+// Income Alignment: the table rows plus the three copy tags that make the
+// section read as a salary plan, a dividend plan, or a mixed one.
+//
+// The document has a single amount column, so a plan where the two clients draw
+// differently can't say "Salary" in the header — the header goes neutral and
+// each row names its own structure instead.
+//
+// The wording below is a first pass for RFL to review; the structure (three
+// tags, three cases) is what the template is tagged for.
+function buildIncomeAlignment(state: IflpFormState): {
+  rows: IncomeAlignmentRow[];
+  label: string;
+  noun: string;
+  recommendation: string;
+} {
+  const clients = clientRecords(state);
+  const structures = new Set(clients.map((c) => c.incomeStructure));
+  // An empty plan reads as salary — the template's original wording, and the
+  // default a planner lands on before choosing anything.
+  const mixed = structures.size > 1;
+  const dividendOnly = !mixed && structures.has("dividend");
+
+  const rows = clients.map((c) => {
+    const amount = formatCurrency(c.incomeAlignmentAmount);
+    const suffix =
+      mixed && amount
+        ? c.incomeStructure === "dividend"
+          ? " (Dividends)"
+          : " (Salary)"
+        : "";
+    return { name: fullName(c), amount: amount + suffix };
+  });
+
+  if (mixed) {
+    return {
+      rows,
+      label: "Income Structure",
+      noun: "salary and dividend",
+      recommendation:
+        "Continue drawing income as outlined above, and revisit the balance " +
+        "between salary and dividends only when additional cash flow is required.",
+    };
+  }
+  if (dividendOnly) {
+    return {
+      rows,
+      label: "Dividends",
+      noun: "dividend",
+      recommendation:
+        "Continue drawing dividends as outlined above and introduce a salary " +
+        "only when additional registered contribution room is required.",
+    };
+  }
+  return {
+    rows,
+    label: "Salary",
+    noun: "salary",
+    recommendation:
+      "Continue drawing salary as outlined above and supplement with dividends " +
+      "only when additional cash flow is required.",
+  };
+}
+
+// The Profile summary line. Preset priorities render as their human labels
+// ("Tax Efficiency"), not the stored option values ("tax-efficiency"); the
+// planner's own priorities follow, by name, so the line stays in step with the
+// table below it.
+function formatPriorities(state: IflpFormState): string {
+  const preset = state.priorities.map(
+    (v) => priorityOptions.find((o) => o.value === v)?.label ?? v
+  );
+  return [...preset, ...otherPriorityRows(state).map((r) => r.name)]
+    .filter(Boolean)
+    .join(", ");
+}
+
+// The planner's own priorities, as extra rows for the Priorities table. A name
+// is what makes a row — an outcome without one has nothing to label it, so it
+// is dropped; a name without an outcome renders with an empty second cell.
+function otherPriorityRows(state: IflpFormState): OtherPriority[] {
+  return state.otherPriorities
+    .map((p) => ({ name: p.name.trim(), outcome: p.outcome.trim() }))
+    .filter((p) => p.name);
+}
+
 export function buildIflpDocPayload(
   state: IflpFormState,
   advisor?: AdvisorInfo
@@ -764,10 +906,7 @@ export function buildIflpDocPayload(
   const ms = state.monthlySavings;
   const ca = state.corporateAccounts;
   const ri = state.retirementIncome;
-  const incomeAlignment = clientRecords(state).map((c) => ({
-    name: fullName(c),
-    salary: formatCurrency(c.incomeAlignmentSalary),
-  }));
+  const incomeAlignment = buildIncomeAlignment(state);
 
   // Retirement income: the two per-client sources (CPP & OAS, TFSA) as one row
   // per existing client, so a solo plan drops the second row (like every other
@@ -838,7 +977,8 @@ export function buildIflpDocPayload(
     corporationName: state.corporationName.trim(),
     client1Age: c1.age == null ? "" : String(c1.age),
     householdIncome: formatCurrency(state.householdIncome),
-    priorities: state.priorities.join(", "),
+    priorities: formatPriorities(state),
+    otherPriorities: otherPriorityRows(state),
     children: formatChildren(state.children),
     clientsClause,
     hasChildren: names.length > 0,
@@ -847,7 +987,10 @@ export function buildIflpDocPayload(
     parties: deriveParties(state),
     governmentBenefits: govBenefits.rows,
     governmentBenefitsTotal: govBenefits.total,
-    incomeAlignment,
+    incomeAlignment: incomeAlignment.rows,
+    incomeStructureLabel: incomeAlignment.label,
+    incomeStructureNoun: incomeAlignment.noun,
+    incomeRecommendation: incomeAlignment.recommendation,
     bucketGovernmentAnnual: formatPerYear(rb.governmentAnnual),
     bucketPersonalMonthly: formatCurrency(rb.personalMonthly),
     bucketPersonalAnnual: formatPerYear(rb.personalAnnual),

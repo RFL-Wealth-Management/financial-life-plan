@@ -52,7 +52,7 @@ wizard step feeds the payload, or it will simply come out empty (harmless).
 | `Client & Client` (Profile, Family row) | `{coverClients}` | coverClients (computed) |
 | `MPC` (Profile) | `{corporationName}` | corporationName |
 | `$00,000` (Profile) | `{householdIncome}` | householdIncome |
-| `Retirement, Tax Efficiency, …` (Profile) | `{priorities}` | priorities |
+| `Retirement, Tax Efficiency, …` (Profile) | `{priorities}` | priorities (preset labels + the planner's own priority names) |
 | `Client and Client are …` (intro sentence) | `{clientsClause} in a strong …` | clientsClause (computed) |
 | `Family` goal table (Priorities) | wrap the table in `{#hasChildren} … {/hasChildren}`; value cell `Fully fund {childrenNames} post-secondary education` | hasChildren, childrenNames (computed) |
 
@@ -70,6 +70,18 @@ still highlighted.
   agrees with the client count: `Dan and Sam are` (two clients) or `Dan is` (one).
   The template owns the rest of the sentence, so keep the leading `{clientsClause}`
   followed by ` in a strong financial position …`.
+- **Other priorities.** The "Your Priorities" table's six rows (Retirement, Tax
+  Efficiency, Family, Protection, Flexibility, Legacy) are **fixed copy in the
+  template** — selecting or clearing a priority in the form does not change them.
+  A seventh row was added after `Legacy`, cloned from it so the cell widths match,
+  carrying a loop:
+  ```
+  {#otherPriorities}<cell>{name}</cell> <cell>{outcome}</cell>{/otherPriorities}
+  ```
+  It repeats once per planner-entered priority and disappears when there are none.
+  A row needs a **name**; a blank outcome renders an empty second cell. Note that
+  `{priorities}` (the Profile summary line) is a *different* tag — free text
+  reaching it does not put a row in this table, which is why both are fed.
 - **Family education goal.** The whole single-row table is wrapped in a
   `{#hasChildren}` section (open/close tags live in the empty spacer paragraphs that
   bracket the table), so it drops out entirely when the plan has no children.
@@ -131,11 +143,32 @@ entered, so an empty table never shows "$0".
 ```
 Total box → `{governmentBenefitsTotal}`. Figures on `IflpClient` (`cppAmount`, `oasAmount`).
 
-**Income Alignment (Client | Salary)** — loop over one row per client:
+**Income Alignment (Client | Salary-or-Dividends)** — loop over one row per
+client, plus three tags that carry the section's copy:
 ```
-{#incomeAlignment}<cell>{name}</cell> <cell>{salary}</cell>{/incomeAlignment}
+Recommended Income Structure:
+<cell>Client</cell> <cell>{incomeStructureLabel}</cell>
+{#incomeAlignment}<cell>{name}</cell> <cell>{amount}</cell>{/incomeAlignment}
+… we recommend maintaining a {incomeStructureNoun} structure that maximizes …
+Maintaining {incomeStructureNoun} income at this level supports:
+Recommendation
+{incomeRecommendation}
 ```
-Figure on `IflpClient` (`incomeAlignmentSalary`). No total row.
+Figures on `IflpClient` (`incomeStructure`, `incomeAlignmentAmount`). No total row.
+
+Each client draws **either** a salary **or** dividends, so there is one amount
+column and the copy follows the plan's composition:
+
+| Plan | `{incomeStructureLabel}` | `{incomeStructureNoun}` | `{amount}` |
+| --- | --- | --- | --- |
+| all salary | `Salary` | `salary` | `$180,000` |
+| all dividends | `Dividends` | `dividend` | `$180,000` |
+| mixed | `Income Structure` | `salary and dividend` | `$180,000 (Salary)` |
+
+`{incomeRecommendation}` is the whole Recommendation sentence, not a fragment —
+a dividend plan can't be produced by swapping a noun into the salary sentence.
+All four strings are built by `buildIncomeAlignment()` in `iflp-form.ts`; the
+wording there is a first pass for RFL to review.
 
 **Retirement Buckets** — fixed rows, per-cell tags. Government has no monthly
 contribution (stays `N/A`); "delivers" values carry a `/year` suffix (composed in

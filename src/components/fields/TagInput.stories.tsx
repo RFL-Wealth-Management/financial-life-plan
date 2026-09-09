@@ -28,18 +28,24 @@ const priorityOptions = [
   { label: "Debt Management", value: "debt-management" },
 ];
 
-function Controlled(props: Partial<React.ComponentProps<typeof TagInput>>) {
-  const [value, setValue] = useState<string[]>(props.value ?? []);
+// `props.value` seeds the state; it must not also be spread onto TagInput, or a
+// story with a preselected value pins the field to that value and nothing the
+// story does appears to take effect.
+function Controlled({
+  value: initialValue,
+  ...props
+}: Partial<React.ComponentProps<typeof TagInput>>) {
+  const [value, setValue] = useState<string[]>(initialValue ?? []);
   return (
     <div>
       <TagInput
         id="demo"
         label="Priorities"
         options={priorityOptions}
-        value={value}
-        onChange={setValue}
         placeholder="Select priorities..."
         {...props}
+        value={value}
+        onChange={setValue}
       />
       <p
         style={{
@@ -49,7 +55,12 @@ function Controlled(props: Partial<React.ComponentProps<typeof TagInput>>) {
           fontFamily: "monospace",
         }}
       >
-        Renders as: {value.length ? value.map((v) => priorityOptions.find((o) => o.value === v)?.label).join(", ") : "(none)"}
+        Renders as:{" "}
+        {value.length
+          ? value
+              .map((v) => priorityOptions.find((o) => o.value === v)?.label ?? v)
+              .join(", ")
+          : "(none)"}
       </p>
     </div>
   );
