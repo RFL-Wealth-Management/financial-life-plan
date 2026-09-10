@@ -56,6 +56,15 @@ import {
   type TransferRow,
   type FundingRow,
 } from "@/lib/iflp-form";
+import { moneyOrDash } from "@/lib/format";
+import {
+  bucketAnnualTotal,
+  bucketMonthlyTotal,
+  educationTotal,
+  governmentBenefitsTotal,
+  monthlySavingsTotal,
+  retirementIncomeTotal,
+} from "@/lib/iflp-derive";
 import { mockIflpFormState } from "@/lib/iflp-mock";
 
 export function IflpWizard({
@@ -725,37 +734,14 @@ function RetirementStep({
   const setMS = (u: Partial<IflpFormState["monthlySavings"]>) =>
     patch({ monthlySavings: { ...ms, ...u } });
 
-  const money = (n: number | null) =>
-    n == null
-      ? "—"
-      : n.toLocaleString("en-CA", {
-          style: "currency",
-          currency: "CAD",
-          maximumFractionDigits: 0,
-        });
-  const sum = (xs: (number | null)[]) => {
-    const v = xs.filter((x): x is number => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) : null;
-  };
 
-  const bucketMonthlyTotal = sum([
-    rb.personalMonthly,
-    rb.corpLiquidMonthly,
-    rb.corpFixedMonthly,
-  ]);
-  const bucketAnnualTotal = sum([
-    rb.governmentAnnual,
-    rb.personalAnnual,
-    rb.corpLiquidAnnual,
-    rb.corpFixedAnnual,
-  ]);
-  const monthlySavingsTotal = sum([ms.personal, ms.corpLiquid, ms.corpFixed]);
-  const cppOasTotal = sum(
-    clients.flatMap((p) => {
-      const c = clientFor(p.key);
-      return [c.cppAmount, c.oasAmount];
-    })
-  );
+  // Every total below is computed in iflp-derive.ts, the same module the document
+  // payload reads, so what the planner sees here and what the plan prints cannot
+  // diverge.
+  const bucketMonthly = bucketMonthlyTotal(state);
+  const bucketAnnual = bucketAnnualTotal(state);
+  const savingsTotal = monthlySavingsTotal(state);
+  const cppOasTotal = governmentBenefitsTotal(state);
 
   // Projected Annual Retirement Income — fixed source rows. Client 2 rows only
   // show when a second client exists (they drop from the document too).
@@ -781,9 +767,7 @@ function RetirementStep({
     { key: "corporateFixed", label: "Corporate Fixed Bucket (Tax-Free)" },
   ];
   const incomeRows = incomeRowDefs.filter((r) => hasClient2 || !r.client2);
-  const retirementIncomeTotal = sum(
-    incomeRows.map((r) => ri[r.key].annualIncome)
-  );
+  const incomeTotal = retirementIncomeTotal(state);
 
   const buckets: {
     key: string;
@@ -857,11 +841,11 @@ function RetirementStep({
         <p className="text-xs text-foreground/60">
           Total — monthly{" "}
           <span className="font-semibold text-foreground">
-            {money(bucketMonthlyTotal)}
+            {moneyOrDash(bucketMonthly)}
           </span>
           , delivering{" "}
           <span className="font-semibold text-foreground">
-            {bucketAnnualTotal == null ? "—" : `${money(bucketAnnualTotal)}/year`}
+            {bucketAnnual == null ? "—" : `${moneyOrDash(bucketAnnual)}/year`}
           </span>
         </p>
       </CollapsibleSection>
@@ -938,7 +922,7 @@ function RetirementStep({
         <p className="text-xs text-foreground/60">
           Total monthly savings:{" "}
           <span className="font-semibold text-foreground">
-            {money(monthlySavingsTotal)}
+            {moneyOrDash(savingsTotal)}
           </span>
         </p>
       </CollapsibleSection>
@@ -982,7 +966,7 @@ function RetirementStep({
             <p className="text-xs text-foreground/60">
               Total projected government retirement income:{" "}
               <span className="font-semibold text-foreground">
-                {money(cppOasTotal)}
+                {moneyOrDash(cppOasTotal)}
               </span>
             </p>
           </>
@@ -1017,7 +1001,7 @@ function RetirementStep({
         <p className="text-xs text-foreground/60">
           Total projected annual retirement income:{" "}
           <span className="font-semibold text-foreground">
-            {money(retirementIncomeTotal)}
+            {moneyOrDash(incomeTotal)}
           </span>
         </p>
       </CollapsibleSection>
@@ -1053,14 +1037,6 @@ function AccountsStep({
   const setCA = (u: Partial<CorporateAccountsInput>) =>
     patch({ corporateAccounts: { ...ca, ...u } });
 
-  const money = (n: number | null) =>
-    n == null
-      ? "—"
-      : n.toLocaleString("en-CA", {
-          style: "currency",
-          currency: "CAD",
-          maximumFractionDigits: 0,
-        });
 
   // One row per client: the monthly contribution is entered, the annual figure
   // beside it is derived (× 12) and read-only, and an estimated value follows
@@ -1115,13 +1091,9 @@ function AccountsStep({
   const namedChildren = state.children
     .map((child, index) => ({ child, index }))
     .filter(({ child }) => child.firstName.trim());
-  const educationTotal = namedChildren.reduce(
-    (sum, { child }) => sum + (child.educationCost ?? 0),
-    0
-  );
-  const hasEducationCost = namedChildren.some(
-    ({ child }) => child.educationCost != null
-  );
+  // sumOrNull's null-means-absent contract replaces the reduce + presence flag:
+  // an all-blank table yields null, so there is nothing to special-case.
+  const educationCostTotal = educationTotal(state);
 
   return (
     <div className="space-y-8">
@@ -1243,7 +1215,7 @@ function AccountsStep({
             <p className="text-xs text-foreground/60">
               Total funding goal:{" "}
               <span className="font-semibold text-foreground">
-                {hasEducationCost ? money(educationTotal) : "—"}
+                {moneyOrDash(educationCostTotal)}
               </span>
             </p>
           </>

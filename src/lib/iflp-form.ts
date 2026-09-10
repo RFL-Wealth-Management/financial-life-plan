@@ -7,6 +7,19 @@
 // (see docs/iflp-tagging.md).
 
 import { priorityOptions } from "@/lib/field-options";
+import {
+  moneyOrBlank as formatCurrency,
+  perYearOrBlank as formatPerYear,
+  formatYears,
+} from "@/lib/format";
+import {
+  educationTotal,
+  governmentBenefitsTotal,
+  retirementIncomeTotal,
+  bucketAnnualTotal,
+  bucketMonthlyTotal,
+  monthlySavingsTotal,
+} from "@/lib/iflp-derive";
 
 // ---------------------------------------------------------------------------
 // Form state. Field value types match the Storybook field components
@@ -710,7 +723,6 @@ function formatNameList(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${last}`;
 }
 
-// "$285,000" from 285000. Null -> "".
 // Monthly -> annual. The single place the ×12 conversion happens: contributions
 // are entered and stored monthly, and every annual contribution figure in the
 // wizard and the document is derived through here, so changing a monthly amount
@@ -721,35 +733,12 @@ export function annualFromMonthly(monthly: number | null): number | null {
   return monthly == null ? null : monthly * MONTHS_PER_YEAR;
 }
 
-function formatCurrency(n: number | null): string {
-  if (n == null || Number.isNaN(n)) return "";
-  return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-}
-
 // "$1,200,000 annually" from (1200000, "annually"). No amount -> "" (the
 // frequency alone is meaningless without a number). Exported so the persistence
 // layer stores the identical composed string the document renders.
 export function formatIncome(amount: number | null, frequency: IncomeFrequency): string {
   const money = formatCurrency(amount);
   return money ? `${money} ${frequency}` : "";
-}
-
-// "$285,000/year" for the Retirement Buckets "What It Delivers" column. Null -> "".
-function formatPerYear(n: number | null): string {
-  const money = formatCurrency(n);
-  return money ? `${money}/year` : "";
-}
-
-// Sum, treating null as absent — returns null when every value is null so a
-// blank table shows "" rather than "$0".
-function sumOrNull(values: (number | null)[]): number | null {
-  const nums = values.filter((v): v is number => v != null);
-  return nums.length ? nums.reduce((a, b) => a + b, 0) : null;
-}
-
-// "12 Years" from 12. Null -> "".
-function formatYears(n: number | null): string {
-  return n == null ? "" : `${n} Year${n === 1 ? "" : "s"}`;
 }
 
 // A registered-account table (TFSA/RRSP/PPP) as one row per client, reading the
@@ -799,13 +788,7 @@ function buildGovernmentBenefits(state: IflpFormState): {
     cpp: formatCurrency(c.cppAmount),
     oas: formatCurrency(c.oasAmount),
   }));
-  const amounts = clients
-    .flatMap((c) => [c.cppAmount, c.oasAmount])
-    .filter((v): v is number => v != null);
-  const total = amounts.length
-    ? formatCurrency(amounts.reduce((sum, v) => sum + v, 0))
-    : "";
-  return { rows, total };
+  return { rows, total: formatCurrency(governmentBenefitsTotal(state)) };
 }
 
 // Income Alignment: the table rows plus the three copy tags that make the
@@ -952,9 +935,6 @@ export function buildIflpDocPayload(
     cost: formatCurrency(c.educationCost),
     years: formatYears(c.educationYearsAway),
   }));
-  const educationTotal = formatCurrency(
-    sumOrNull(educationChildren.map((c) => c.educationCost))
-  );
 
   const corporateFixed = clientRecords(state).map((c) => ({
     name: fullName(c),
@@ -1020,23 +1000,12 @@ export function buildIflpDocPayload(
     bucketCorpLiquidAnnual: formatPerYear(rb.corpLiquidAnnual),
     bucketCorpFixedMonthly: formatCurrency(rb.corpFixedMonthly),
     bucketCorpFixedAnnual: formatPerYear(rb.corpFixedAnnual),
-    bucketMonthlyTotal: formatCurrency(
-      sumOrNull([rb.personalMonthly, rb.corpLiquidMonthly, rb.corpFixedMonthly])
-    ),
-    bucketAnnualTotal: formatPerYear(
-      sumOrNull([
-        rb.governmentAnnual,
-        rb.personalAnnual,
-        rb.corpLiquidAnnual,
-        rb.corpFixedAnnual,
-      ])
-    ),
+    bucketMonthlyTotal: formatCurrency(bucketMonthlyTotal(state)),
+    bucketAnnualTotal: formatPerYear(bucketAnnualTotal(state)),
     monthlySavingsPersonal: formatCurrency(ms.personal),
     monthlySavingsCorpLiquid: formatCurrency(ms.corpLiquid),
     monthlySavingsCorpFixed: formatCurrency(ms.corpFixed),
-    monthlySavingsTotal: formatCurrency(
-      sumOrNull([ms.personal, ms.corpLiquid, ms.corpFixed])
-    ),
+    monthlySavingsTotal: formatCurrency(monthlySavingsTotal(state)),
     tfsa: accountRows(state, "tfsaMonthlyContribution", "tfsaEstimatedValue"),
     rrsp: accountRows(state, "rrspMonthlyContribution", "rrspEstimatedValue"),
     ppp: accountRows(state, "pppMonthlyContribution", "pppEstimatedValue"),
@@ -1048,7 +1017,7 @@ export function buildIflpDocPayload(
     fixedEstateValue: formatCurrency(ca.fixedEstateValue),
     fixedTotalLifetimeValue: formatCurrency(ca.fixedTotalLifetimeValue),
     education,
-    educationTotal,
+    educationTotal: formatCurrency(educationTotal(state)),
     childrenList: formatNameList(names),
     termLife: insuranceRows(state, "termLifeCoverage", "termLifeTerm"),
     criticalIllness: insuranceRows(
@@ -1094,14 +1063,6 @@ export function buildIflpDocPayload(
     riCorpLiquidEstate: formatCurrency(ri.corporateLiquid.estateValue),
     riCorpFixedIncome: formatCurrency(ri.corporateFixed.annualIncome),
     riCorpFixedEstate: formatCurrency(ri.corporateFixed.estateValue),
-    riTotalIncome: formatCurrency(
-      sumOrNull([
-        ...riIncomeClients.map((_, i) => riCppOasSources[i].annualIncome),
-        ...riIncomeClients.map((_, i) => riTfsaSources[i].annualIncome),
-        ri.personalPension.annualIncome,
-        ri.corporateLiquid.annualIncome,
-        ri.corporateFixed.annualIncome,
-      ])
-    ),
+    riTotalIncome: formatCurrency(retirementIncomeTotal(state)),
   };
 }

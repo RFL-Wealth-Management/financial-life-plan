@@ -3,6 +3,8 @@
 // because they follow from another field (e.g. an annual contribution derived
 // from the monthly one), and for cells that are simply not applicable.
 
+import { formatMoney } from "@/lib/format";
+
 interface DerivedCurrencyProps {
   label: string;
   /** The computed amount. `null` renders `emptyText` instead of a figure. */
@@ -12,14 +14,6 @@ interface DerivedCurrencyProps {
   emptyText?: string;
   /** Short note under the field, e.g. "12 × monthly". */
   hint?: string;
-}
-
-function formatCurrency(n: number): string {
-  return n.toLocaleString("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  });
 }
 
 export function DerivedCurrency({
@@ -45,7 +39,7 @@ export function DerivedCurrency({
         {value == null ? (
           <span className="text-foreground/40">{emptyText}</span>
         ) : (
-          formatCurrency(value)
+          formatMoney(value)
         )}
       </output>
       {hint && <p className="mt-1 text-[11px] text-foreground/45">{hint}</p>}
