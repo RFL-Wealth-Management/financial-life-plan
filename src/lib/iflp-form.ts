@@ -13,8 +13,12 @@ import {
   formatYears,
 } from "@/lib/format";
 import {
+  corporateFixedDelivers,
   educationTotal,
   governmentBenefitsTotal,
+  governmentDelivers,
+  monthlySavingsCorpFixed,
+  monthlySavingsCorpLiquid,
   retirementIncomeTotal,
   bucketAnnualTotal,
   bucketMonthlyTotal,
@@ -64,25 +68,30 @@ export interface IflpClient {
   disabilityBenefitTerm: string;
 }
 
-// Step 3 — Retirement Buckets. Fixed-label rows; only the amounts are entered.
-// The Government bucket has no monthly contribution (renders "N/A"); every
-// "annual" figure is the bucket's projected "What It Delivers". Totals are
-// computed, not stored.
+// Step 3 — Retirement Buckets. Fixed-label rows; the Government bucket has no
+// monthly contribution (renders "N/A"), and each "annual" figure is the bucket's
+// projected "What It Delivers". Totals are computed, not stored.
+//
+// Only the buckets whose delivers figure has no source elsewhere are still typed
+// here. Government (comment 5) and Corporate Fixed (comment 9) are derived in
+// iflp-derive.ts and so have no field: Personal Savings and Corporate Liquid keep
+// theirs until comments 6/10 and 8 give them a source.
 export interface RetirementBucketsInput {
-  governmentAnnual: number | null;
   personalMonthly: number | null;
   personalAnnual: number | null;
   corpLiquidMonthly: number | null;
   corpLiquidAnnual: number | null;
   corpFixedMonthly: number | null;
-  corpFixedAnnual: number | null;
 }
 
 // Step 3 — Monthly Savings Allocation. Three fixed rows; total is computed.
+//
+// The two corporate rows are derived from their account contributions (comments
+// 11 and 12), so only Personal Savings is typed — and that becomes a sum of the
+// personal accounts once FHSA and Non-Registered exist (comments 6 and 10), at
+// which point this interface goes away entirely.
 export interface MonthlySavingsInput {
   personal: number | null;
-  corpLiquid: number | null;
-  corpFixed: number | null;
 }
 
 // Step 2 — Projected Access To Capital. Fixed year rows (2/4/6/8/10); only the
@@ -312,15 +321,13 @@ export const initialIflpFormState: IflpFormState = {
     corporateFixed: { annualIncome: null, estateValue: null },
   },
   retirementBuckets: {
-    governmentAnnual: null,
     personalMonthly: null,
     personalAnnual: null,
     corpLiquidMonthly: null,
     corpLiquidAnnual: null,
     corpFixedMonthly: null,
-    corpFixedAnnual: null,
   },
-  monthlySavings: { personal: null, corpLiquid: null, corpFixed: null },
+  monthlySavings: { personal: null },
   corporateAccounts: {
     liquidMonthlyContribution: null,
     liquidEstimatedValue: null,
@@ -1008,18 +1015,20 @@ export function buildIflpDocPayload(
     incomeStructureLabel: incomeAlignment.label,
     incomeStructureNoun: incomeAlignment.noun,
     incomeRecommendation: incomeAlignment.recommendation,
-    bucketGovernmentAnnual: formatPerYear(rb.governmentAnnual),
+    // Government and Corporate Fixed no longer read their own stored value: the
+    // buckets table summarises figures entered elsewhere (comments 5 and 9).
+    bucketGovernmentAnnual: formatPerYear(governmentDelivers(state)),
     bucketPersonalMonthly: formatCurrency(rb.personalMonthly),
     bucketPersonalAnnual: formatPerYear(rb.personalAnnual),
     bucketCorpLiquidMonthly: formatCurrency(rb.corpLiquidMonthly),
     bucketCorpLiquidAnnual: formatPerYear(rb.corpLiquidAnnual),
     bucketCorpFixedMonthly: formatCurrency(rb.corpFixedMonthly),
-    bucketCorpFixedAnnual: formatPerYear(rb.corpFixedAnnual),
+    bucketCorpFixedAnnual: formatPerYear(corporateFixedDelivers(state)),
     bucketMonthlyTotal: formatCurrency(bucketMonthlyTotal(state)),
     bucketAnnualTotal: formatPerYear(bucketAnnualTotal(state)),
     monthlySavingsPersonal: formatCurrency(ms.personal),
-    monthlySavingsCorpLiquid: formatCurrency(ms.corpLiquid),
-    monthlySavingsCorpFixed: formatCurrency(ms.corpFixed),
+    monthlySavingsCorpLiquid: formatCurrency(monthlySavingsCorpLiquid(state)),
+    monthlySavingsCorpFixed: formatCurrency(monthlySavingsCorpFixed(state)),
     monthlySavingsTotal: formatCurrency(monthlySavingsTotal(state)),
     tfsa: accountRows(state, "tfsaMonthlyContribution", "tfsaEstimatedValue"),
     rrsp: accountRows(state, "rrspMonthlyContribution", "rrspEstimatedValue"),

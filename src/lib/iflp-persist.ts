@@ -15,7 +15,13 @@
 
 import { randomUUID } from "node:crypto";
 import { moneyOrBlank } from "@/lib/format";
-import { retirementIncomeTotal } from "@/lib/iflp-derive";
+import {
+  corporateFixedDelivers,
+  governmentDelivers,
+  monthlySavingsCorpFixed,
+  monthlySavingsCorpLiquid,
+  retirementIncomeTotal,
+} from "@/lib/iflp-derive";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   clientRecords,
@@ -176,20 +182,24 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     }));
 
   // plan_retirement_buckets — four fixed rows (Government has no contribution).
+  // The Government and Corporate Fixed annual values are derived (comments 5 and
+  // 9), so they are computed here rather than read off retirementBuckets: the
+  // stored row then matches what the document printed. Load recomputes them, for
+  // the same reason it recomputes plans.success_*.
   const rb = state.retirementBuckets;
   const retirement_buckets: Row[] = [
-    { contribution: null, annual_value: rb.governmentAnnual },
+    { contribution: null, annual_value: governmentDelivers(state) },
     { contribution: rb.personalMonthly, annual_value: rb.personalAnnual },
     { contribution: rb.corpLiquidMonthly, annual_value: rb.corpLiquidAnnual },
-    { contribution: rb.corpFixedMonthly, annual_value: rb.corpFixedAnnual },
+    { contribution: rb.corpFixedMonthly, annual_value: corporateFixedDelivers(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
   // plan_monthly_savings — three labelled fixed rows.
   const ms = state.monthlySavings;
   const monthly_savings: Row[] = [
     { label: "Personal Savings", amount: ms.personal },
-    { label: "Corporate Liquid Bucket", amount: ms.corpLiquid },
-    { label: "Corporate Fixed Bucket", amount: ms.corpFixed },
+    { label: "Corporate Liquid Bucket", amount: monthlySavingsCorpLiquid(state) },
+    { label: "Corporate Fixed Bucket", amount: monthlySavingsCorpFixed(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
   // plan_income_alignment — one row per client. `amount` is whichever structure

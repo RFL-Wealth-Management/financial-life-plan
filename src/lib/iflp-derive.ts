@@ -97,15 +97,62 @@ export function bucketMonthlyTotal(state: IflpFormState): number | null {
 export function bucketAnnualTotal(state: IflpFormState): number | null {
   const rb = state.retirementBuckets;
   return sumOrNull([
-    rb.governmentAnnual,
+    governmentDelivers(state),
     rb.personalAnnual,
     rb.corpLiquidAnnual,
-    rb.corpFixedAnnual,
+    corporateFixedDelivers(state),
   ]);
+}
+
+/**
+ * Corporate Fixed Bucket monthly contribution for the whole plan — the per-client
+ * figures summed. The bucket rows against the plan, not against a client, so
+ * both clients' contributions land in one bucket row and one savings allocation.
+ */
+export function corporateFixedMonthly(state: IflpFormState): number | null {
+  return sumOrNull(
+    namedClients(state).map((c) => c.corporateFixedMonthlyContribution)
+  );
+}
+
+/**
+ * What each Retirement Bucket delivers per year. These are no longer typed into
+ * the buckets table — each one already existed as a figure elsewhere in the plan,
+ * and the buckets table is a summary of those.
+ *
+ * Corporate Liquid is absent on purpose: it has no source field yet. Its
+ * "Annual Income in Retirement" input arrives with comment 8, and until then the
+ * bucket keeps its own typed value.
+ */
+export function governmentDelivers(state: IflpFormState): number | null {
+  return governmentBenefitsTotal(state);
+}
+
+export function corporateFixedDelivers(state: IflpFormState): number | null {
+  return state.corporateAccounts.fixedAnnualTaxFreeIncome;
 }
 
 /** Monthly Savings Allocation — total across the three categories. */
 export function monthlySavingsTotal(state: IflpFormState): number | null {
-  const ms = state.monthlySavings;
-  return sumOrNull([ms.personal, ms.corpLiquid, ms.corpFixed]);
+  return sumOrNull([
+    state.monthlySavings.personal,
+    monthlySavingsCorpLiquid(state),
+    monthlySavingsCorpFixed(state),
+  ]);
+}
+
+/**
+ * Monthly Savings Allocation rows that mirror an account contribution. The
+ * allocation table and the account sections were both typed by hand and could
+ * disagree; these two now read straight from the account.
+ *
+ * `personal` is still typed — it becomes the sum of the personal savings
+ * accounts once FHSA and Non-Registered exist (comments 6 and 10).
+ */
+export function monthlySavingsCorpLiquid(state: IflpFormState): number | null {
+  return state.corporateAccounts.liquidMonthlyContribution;
+}
+
+export function monthlySavingsCorpFixed(state: IflpFormState): number | null {
+  return corporateFixedMonthly(state);
 }

@@ -140,19 +140,20 @@ export async function loadPlanState(
   const buckets = bySort((plan.plan_retirement_buckets as AnyRow[]) ?? []);
   const rb = state.retirementBuckets;
   const num = (r: AnyRow | undefined, k: string) => (r?.[k] as number) ?? null;
-  rb.governmentAnnual = num(buckets[0], "annual_value");
+  // buckets[0] (Government) and buckets[3].annual_value (Corporate Fixed) hold
+  // derived figures — a snapshot of what the document printed. Recomputed from
+  // their sources on every render, so they are not read back here.
   rb.personalMonthly = num(buckets[1], "contribution");
   rb.personalAnnual = num(buckets[1], "annual_value");
   rb.corpLiquidMonthly = num(buckets[2], "contribution");
   rb.corpLiquidAnnual = num(buckets[2], "annual_value");
   rb.corpFixedMonthly = num(buckets[3], "contribution");
-  rb.corpFixedAnnual = num(buckets[3], "annual_value");
 
   // --- Monthly savings (fixed order: personal, corpLiquid, corpFixed) --------
   const savings = bySort((plan.plan_monthly_savings as AnyRow[]) ?? []);
   state.monthlySavings.personal = num(savings[0], "amount");
-  state.monthlySavings.corpLiquid = num(savings[1], "amount");
-  state.monthlySavings.corpFixed = num(savings[2], "amount");
+  // savings[1] / savings[2] mirror the corporate account contributions and are
+  // likewise derived, not restored.
 
   // --- Income alignment + government benefits (per client) -------------------
   for (const r of (plan.plan_income_alignment as AnyRow[]) ?? []) {

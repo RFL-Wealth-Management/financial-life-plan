@@ -58,6 +58,10 @@ import { moneyOrDash } from "@/lib/format";
 import {
   bucketAnnualTotal,
   bucketMonthlyTotal,
+  corporateFixedDelivers,
+  governmentDelivers,
+  monthlySavingsCorpFixed,
+  monthlySavingsCorpLiquid,
   educationTotal,
   governmentBenefitsTotal,
   monthlySavingsTotal,
@@ -747,15 +751,29 @@ function RetirementStep({
   const incomeRows = incomeRowDefs.filter((r) => hasClient2 || !r.client2);
   const incomeTotal = retirementIncomeTotal(state);
 
+  // `delivers` names where a bucket's annual figure comes from. A bucket without
+  // one has no source field yet and keeps its typed input: Personal Savings waits
+  // on the per-account retirement income (comments 6/10), Corporate Liquid on its
+  // "Annual Income in Retirement" field (comment 8).
   const buckets: {
     key: string;
     label: string;
     monthly: keyof RetirementBucketsInput;
-    annual: keyof RetirementBucketsInput;
+    // Only set when the bucket still types its own annual figure; a bucket with
+    // `delivers` has no stored field to point at.
+    annual?: keyof RetirementBucketsInput;
+    delivers?: (s: IflpFormState) => number | null;
+    deliversHint?: string;
   }[] = [
     { key: "personal", label: "Personal Savings Bucket", monthly: "personalMonthly", annual: "personalAnnual" },
     { key: "corpLiquid", label: "Corporate Liquid Bucket", monthly: "corpLiquidMonthly", annual: "corpLiquidAnnual" },
-    { key: "corpFixed", label: "Corporate Fixed Bucket", monthly: "corpFixedMonthly", annual: "corpFixedAnnual" },
+    {
+      key: "corpFixed",
+      label: "Corporate Fixed Bucket",
+      monthly: "corpFixedMonthly",
+      delivers: corporateFixedDelivers,
+      deliversHint: "Step 4 · Corporate Fixed annual tax-free income",
+    },
   ];
 
   return (
@@ -777,13 +795,11 @@ function RetirementStep({
               value={null}
               emptyText="N/A"
             />
-            <CurrencyInput
+            <DerivedCurrency
               id="bucket-gov-annual"
               label="Delivers / year"
-              prefix="$"
-              value={rb.governmentAnnual}
-              onChange={(v) => setRB({ governmentAnnual: v })}
-              placeholder="20,000"
+              value={governmentDelivers(state)}
+              hint="Government Retirement Benefits total, below"
             />
           </div>
         </div>
@@ -802,16 +818,25 @@ function RetirementStep({
                 }
                 placeholder="500"
               />
-              <CurrencyInput
-                id={`bucket-${b.key}-annual`}
-                label="Delivers / year"
-                prefix="$"
-                value={rb[b.annual]}
-                onChange={(v) =>
-                  setRB({ [b.annual]: v } as Partial<RetirementBucketsInput>)
-                }
-                placeholder="60,000"
-              />
+              {b.delivers ? (
+                <DerivedCurrency
+                  id={`bucket-${b.key}-annual`}
+                  label="Delivers / year"
+                  value={b.delivers(state)}
+                  hint={b.deliversHint}
+                />
+              ) : (
+                <CurrencyInput
+                  id={`bucket-${b.key}-annual`}
+                  label="Delivers / year"
+                  prefix="$"
+                  value={b.annual ? rb[b.annual] : null}
+                  onChange={(v) =>
+                    setRB({ [b.annual as string]: v } as Partial<RetirementBucketsInput>)
+                  }
+                  placeholder="60,000"
+                />
+              )}
             </div>
           </div>
         ))}
@@ -881,21 +906,17 @@ function RetirementStep({
           onChange={(personal) => setMS({ personal })}
           placeholder="2,000"
         />
-        <CurrencyInput
+        <DerivedCurrency
           id="ms-corp-liquid"
           label="Corporate Liquid Bucket"
-          prefix="$"
-          value={ms.corpLiquid}
-          onChange={(corpLiquid) => setMS({ corpLiquid })}
-          placeholder="1,500"
+          value={monthlySavingsCorpLiquid(state)}
+          hint="Step 4 · Corporate Liquid monthly contribution"
         />
-        <CurrencyInput
+        <DerivedCurrency
           id="ms-corp-fixed"
           label="Corporate Fixed Bucket"
-          prefix="$"
-          value={ms.corpFixed}
-          onChange={(corpFixed) => setMS({ corpFixed })}
-          placeholder="800"
+          value={monthlySavingsCorpFixed(state)}
+          hint="Step 4 · Corporate Fixed monthly contribution, both clients"
         />
         <p className="text-xs text-foreground/60">
           Total monthly savings:{" "}

@@ -99,15 +99,13 @@ export const mockIflpFormState: IflpFormState = {
     corporateFixed: { annualIncome: 150000, estateValue: 3500000 },
   },
   retirementBuckets: {
-    governmentAnnual: 44500,
     personalMonthly: 2000,
     personalAnnual: 240000,
     corpLiquidMonthly: 1500,
     corpLiquidAnnual: 180000,
     corpFixedMonthly: 800,
-    corpFixedAnnual: 96000,
   },
-  monthlySavings: { personal: 2000, corpLiquid: 1500, corpFixed: 800 },
+  monthlySavings: { personal: 2000 },
   corporateAccounts: {
     liquidMonthlyContribution: 1500,
     liquidEstimatedValue: 720000,
