@@ -59,6 +59,7 @@ import {
   bucketAnnualTotal,
   bucketMonthlyTotal,
   corporateFixedDelivers,
+  corporateLiquidIncome,
   governmentDelivers,
   monthlySavingsCorpFixed,
   monthlySavingsCorpLiquid,
@@ -739,15 +740,29 @@ function RetirementStep({
     key: keyof RetirementIncomeInput;
     label: string;
     client2?: boolean;
+    // Set when the row's annual income is entered elsewhere in the plan.
+    income?: (s: IflpFormState) => number | null;
+    incomeHint?: string;
   }[] = [
     { key: "cppOas1", label: `CPP & OAS (${c1Name})` },
     { key: "cppOas2", label: `CPP & OAS (${c2Name})`, client2: true },
     { key: "tfsa1", label: `TFSA (${c1Name})` },
     { key: "tfsa2", label: `TFSA (${c2Name})`, client2: true },
     { key: "personalPension", label: "Personal Pension Plan" },
-    { key: "corporateLiquid", label: "Corporate Liquid Bucket" },
+    {
+      key: "corporateLiquid",
+      label: "Corporate Liquid Bucket",
+      // Entered in Accounts & Education instead (comment 8); shown here read-only
+      // so the summary still reads as a complete table.
+      income: corporateLiquidIncome,
+      incomeHint: "Step 4 · Corporate Liquid Bucket",
+    },
     { key: "corporateFixed", label: "Corporate Fixed Bucket (Tax-Free)" },
   ];
+  // Every row but Corporate Liquid carries its own annual income; that one is
+  // read from the account section, so the union needs narrowing to read it.
+  const incomeOf = (src: RetirementIncomeInput[keyof RetirementIncomeInput]) =>
+    "annualIncome" in src ? src.annualIncome : null;
   const incomeRows = incomeRowDefs.filter((r) => hasClient2 || !r.client2);
   const incomeTotal = retirementIncomeTotal(state);
 
@@ -766,7 +781,13 @@ function RetirementStep({
     deliversHint?: string;
   }[] = [
     { key: "personal", label: "Personal Savings Bucket", monthly: "personalMonthly", annual: "personalAnnual" },
-    { key: "corpLiquid", label: "Corporate Liquid Bucket", monthly: "corpLiquidMonthly", annual: "corpLiquidAnnual" },
+    {
+      key: "corpLiquid",
+      label: "Corporate Liquid Bucket",
+      monthly: "corpLiquidMonthly",
+      delivers: corporateLiquidIncome,
+      deliversHint: "Step 4 · Corporate Liquid annual income in retirement",
+    },
     {
       key: "corpFixed",
       label: "Corporate Fixed Bucket",
@@ -980,13 +1001,22 @@ function RetirementStep({
           <div key={row.key} className="space-y-2">
             <p className="text-xs font-medium text-foreground/70">{row.label}</p>
             <div className="grid grid-cols-2 gap-3">
-              <CurrencyInput
-                id={`ri-${row.key}-income`}
-                label="Annual Income"
-                prefix="$"
-                value={ri[row.key].annualIncome}
-                onChange={(annualIncome) => setRI(row.key, { annualIncome })}
-              />
+              {row.income ? (
+                <DerivedCurrency
+                  id={`ri-${row.key}-income`}
+                  label="Annual Income"
+                  value={row.income(state)}
+                  hint={row.incomeHint}
+                />
+              ) : (
+                <CurrencyInput
+                  id={`ri-${row.key}-income`}
+                  label="Annual Income"
+                  prefix="$"
+                  value={incomeOf(ri[row.key])}
+                  onChange={(annualIncome) => setRI(row.key, { annualIncome })}
+                />
+              )}
               <CurrencyInput
                 id={`ri-${row.key}-estate`}
                 label="Expected Estate Value"
@@ -1135,6 +1165,14 @@ function AccountsStep({
             prefix="$"
             value={ca.liquidEstimatedValue}
             onChange={(v) => setCA({ liquidEstimatedValue: v })}
+          />
+          <CurrencyInput
+            id="corp-liquid-retirement-income"
+            label="Annual Income in Retirement"
+            prefix="$"
+            value={ca.liquidRetirementIncome}
+            onChange={(v) => setCA({ liquidRetirementIncome: v })}
+            placeholder="60,000"
           />
         </div>
       </CollapsibleSection>

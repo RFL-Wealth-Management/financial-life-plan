@@ -18,11 +18,10 @@
 // dollars in it.
 
 import { sumOrNull } from "@/lib/format";
-import type {
-  IflpClient,
-  IflpFormState,
-  RetirementIncomeInput,
-} from "@/lib/iflp-form";
+import type { IflpClient, IflpFormState } from "@/lib/iflp-form";
+
+/** The Projected Annual Retirement Income rows that exist once per client. */
+type PerClientIncomeKey = "cppOas1" | "cppOas2" | "tfsa1" | "tfsa2";
 
 // ---------------------------------------------------------------------------
 // Local copies of the two party predicates. These duplicate `hasClient` /
@@ -63,7 +62,9 @@ export function governmentBenefitsTotal(state: IflpFormState): number | null {
  */
 export function retirementIncomeTotal(state: IflpFormState): number | null {
   const ri = state.retirementIncome;
-  const perClient: (keyof RetirementIncomeInput)[][] = [
+  // Narrowed to the per-client keys — the plan-level entries have different
+  // shapes, and Corporate Liquid's income no longer lives on this object at all.
+  const perClient: PerClientIncomeKey[][] = [
     ["cppOas1", "tfsa1"],
     ["cppOas2", "tfsa2"],
   ];
@@ -73,7 +74,7 @@ export function retirementIncomeTotal(state: IflpFormState): number | null {
   return sumOrNull([
     ...clientRows,
     ri.personalPension.annualIncome,
-    ri.corporateLiquid.annualIncome,
+    corporateLiquidIncome(state),
     ri.corporateFixed.annualIncome,
   ]);
 }
@@ -99,7 +100,7 @@ export function bucketAnnualTotal(state: IflpFormState): number | null {
   return sumOrNull([
     governmentDelivers(state),
     rb.personalAnnual,
-    rb.corpLiquidAnnual,
+    corporateLiquidIncome(state),
     corporateFixedDelivers(state),
   ]);
 }
@@ -130,6 +131,15 @@ export function governmentDelivers(state: IflpFormState): number | null {
 
 export function corporateFixedDelivers(state: IflpFormState): number | null {
   return state.corporateAccounts.fixedAnnualTaxFreeIncome;
+}
+
+/**
+ * What the Corporate Liquid Bucket pays out per year in retirement. Entered once,
+ * in the account section (comment 8), and read from here by both the Retirement
+ * Buckets "delivers" cell and the Projected Annual Retirement Income row.
+ */
+export function corporateLiquidIncome(state: IflpFormState): number | null {
+  return state.corporateAccounts.liquidRetirementIncome;
 }
 
 /** Monthly Savings Allocation — total across the three categories. */

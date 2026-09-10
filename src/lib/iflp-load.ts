@@ -146,7 +146,6 @@ export async function loadPlanState(
   rb.personalMonthly = num(buckets[1], "contribution");
   rb.personalAnnual = num(buckets[1], "annual_value");
   rb.corpLiquidMonthly = num(buckets[2], "contribution");
-  rb.corpLiquidAnnual = num(buckets[2], "annual_value");
   rb.corpFixedMonthly = num(buckets[3], "contribution");
 
   // --- Monthly savings (fixed order: personal, corpLiquid, corpFixed) --------
@@ -296,7 +295,10 @@ export async function loadPlanState(
     } else if (source === "personal_pension") {
       inc.personalPension = cell;
     } else if (source === "corporate_liquid") {
-      inc.corporateLiquid = cell;
+      // The annual income is entered in the account section (comment 8), so it
+      // loads back there; only the estate value belongs to this table.
+      state.corporateAccounts.liquidRetirementIncome = cell.annualIncome;
+      inc.corporateLiquid = { estateValue: cell.estateValue };
     } else if (source === "corporate_fixed") {
       inc.corporateFixed = cell;
     }

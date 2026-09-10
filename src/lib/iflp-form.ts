@@ -14,6 +14,7 @@ import {
 } from "@/lib/format";
 import {
   corporateFixedDelivers,
+  corporateLiquidIncome,
   educationTotal,
   governmentBenefitsTotal,
   governmentDelivers,
@@ -72,15 +73,14 @@ export interface IflpClient {
 // monthly contribution (renders "N/A"), and each "annual" figure is the bucket's
 // projected "What It Delivers". Totals are computed, not stored.
 //
-// Only the buckets whose delivers figure has no source elsewhere are still typed
-// here. Government (comment 5) and Corporate Fixed (comment 9) are derived in
-// iflp-derive.ts and so have no field: Personal Savings and Corporate Liquid keep
-// theirs until comments 6/10 and 8 give them a source.
+// Only Personal Savings still types its delivers figure — Government (comment 5),
+// Corporate Liquid (comment 8) and Corporate Fixed (comment 9) are derived in
+// iflp-derive.ts and so have no field here. Personal Savings follows once the
+// per-account retirement income exists (comments 6 and 10).
 export interface RetirementBucketsInput {
   personalMonthly: number | null;
   personalAnnual: number | null;
   corpLiquidMonthly: number | null;
-  corpLiquidAnnual: number | null;
   corpFixedMonthly: number | null;
 }
 
@@ -121,7 +121,9 @@ export interface RetirementIncomeInput {
   tfsa1: RetirementIncomeSource;
   tfsa2: RetirementIncomeSource;
   personalPension: RetirementIncomeSource;
-  corporateLiquid: RetirementIncomeSource;
+  // Annual income lives on CorporateAccountsInput.liquidRetirementIncome; only
+  // the estate value is entered in the income summary.
+  corporateLiquid: { estateValue: number | null };
   corporateFixed: RetirementIncomeSource;
 }
 
@@ -134,6 +136,11 @@ export interface CorporateAccountsInput {
   // {corpLiquidMonthly} directly; the wizard still shows the derived annual.
   liquidMonthlyContribution: number | null;
   liquidEstimatedValue: number | null;
+  // What the bucket pays out per year in retirement. Entered here, in the account
+  // section, rather than in the Projected Annual Retirement Income table (comment
+  // 8) — that table's Corporate Liquid row and the Retirement Buckets "delivers"
+  // cell both read it from here, so the figure is typed once.
+  liquidRetirementIncome: number | null;
   fixedAnnualTaxFreeIncome: number | null;
   fixedContributionPeriodYears: number | null;
   fixedEstateValue: number | null;
@@ -317,20 +324,20 @@ export const initialIflpFormState: IflpFormState = {
     tfsa1: { annualIncome: null, estateValue: null },
     tfsa2: { annualIncome: null, estateValue: null },
     personalPension: { annualIncome: null, estateValue: null },
-    corporateLiquid: { annualIncome: null, estateValue: null },
+    corporateLiquid: { estateValue: null },
     corporateFixed: { annualIncome: null, estateValue: null },
   },
   retirementBuckets: {
     personalMonthly: null,
     personalAnnual: null,
     corpLiquidMonthly: null,
-    corpLiquidAnnual: null,
     corpFixedMonthly: null,
   },
   monthlySavings: { personal: null },
   corporateAccounts: {
     liquidMonthlyContribution: null,
     liquidEstimatedValue: null,
+    liquidRetirementIncome: null,
     fixedAnnualTaxFreeIncome: null,
     fixedContributionPeriodYears: null,
     fixedEstateValue: null,
@@ -1021,7 +1028,7 @@ export function buildIflpDocPayload(
     bucketPersonalMonthly: formatCurrency(rb.personalMonthly),
     bucketPersonalAnnual: formatPerYear(rb.personalAnnual),
     bucketCorpLiquidMonthly: formatCurrency(rb.corpLiquidMonthly),
-    bucketCorpLiquidAnnual: formatPerYear(rb.corpLiquidAnnual),
+    bucketCorpLiquidAnnual: formatPerYear(corporateLiquidIncome(state)),
     bucketCorpFixedMonthly: formatCurrency(rb.corpFixedMonthly),
     bucketCorpFixedAnnual: formatPerYear(corporateFixedDelivers(state)),
     bucketMonthlyTotal: formatCurrency(bucketMonthlyTotal(state)),
@@ -1081,7 +1088,7 @@ export function buildIflpDocPayload(
     riTfsa: riTfsa,
     riPppIncome: formatCurrency(ri.personalPension.annualIncome),
     riPppEstate: formatCurrency(ri.personalPension.estateValue),
-    riCorpLiquidIncome: formatCurrency(ri.corporateLiquid.annualIncome),
+    riCorpLiquidIncome: formatCurrency(corporateLiquidIncome(state)),
     riCorpLiquidEstate: formatCurrency(ri.corporateLiquid.estateValue),
     riCorpFixedIncome: formatCurrency(ri.corporateFixed.annualIncome),
     riCorpFixedEstate: formatCurrency(ri.corporateFixed.estateValue),

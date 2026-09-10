@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { moneyOrBlank } from "@/lib/format";
 import {
   corporateFixedDelivers,
+  corporateLiquidIncome,
   governmentDelivers,
   monthlySavingsCorpFixed,
   monthlySavingsCorpLiquid,
@@ -190,7 +191,7 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
   const retirement_buckets: Row[] = [
     { contribution: null, annual_value: governmentDelivers(state) },
     { contribution: rb.personalMonthly, annual_value: rb.personalAnnual },
-    { contribution: rb.corpLiquidMonthly, annual_value: rb.corpLiquidAnnual },
+    { contribution: rb.corpLiquidMonthly, annual_value: corporateLiquidIncome(state) },
     { contribution: rb.corpFixedMonthly, annual_value: corporateFixedDelivers(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
@@ -374,16 +375,18 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
       sort_order: riOrder++,
     });
   });
+  // Corporate Liquid's annual income is entered in the account section, so it is
+  // read from there rather than off `ri` — the row it writes is unchanged.
   ([
-    ["personal_pension", ri.personalPension],
-    ["corporate_liquid", ri.corporateLiquid],
-    ["corporate_fixed", ri.corporateFixed],
-  ] as const).forEach(([source, src]) => {
+    ["personal_pension", ri.personalPension.annualIncome, ri.personalPension.estateValue],
+    ["corporate_liquid", corporateLiquidIncome(state), ri.corporateLiquid.estateValue],
+    ["corporate_fixed", ri.corporateFixed.annualIncome, ri.corporateFixed.estateValue],
+  ] as const).forEach(([source, annualIncome, estateValue]) => {
     retirement_income.push({
       source,
       party_id: null,
-      annual_income: src.annualIncome,
-      estate_value: src.estateValue,
+      annual_income: annualIncome,
+      estate_value: estateValue,
       sort_order: riOrder++,
     });
   });
