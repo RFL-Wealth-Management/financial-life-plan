@@ -10,12 +10,14 @@
 //   - plan_children has no age column, so a child's age comes back null.
 
 import {
+  defaultPlanOptions,
   initialIflpFormState,
   MONTHS_PER_YEAR,
   type IflpFormState,
   type IflpClient,
   type IncomeFrequency,
   type PartyKey,
+  type PlanOptions,
 } from "@/lib/iflp-form";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -90,6 +92,14 @@ export async function loadPlanState(
   state.passiveIncomeFrequency = pi.frequency;
   state.successLiquidCapital = (plan.success_liquid_capital as string) ?? "";
   state.successNetWorth = (plan.success_net_worth as string) ?? "";
+
+  // Inclusion switches. A key absent from the blob falls back to the app default,
+  // so plans saved before plans.options existed load with every account included
+  // and no pension — which is what those plans' documents already contained.
+  state.planOptions = {
+    ...defaultPlanOptions,
+    ...((plan.options as Partial<PlanOptions>) ?? {}),
+  };
 
   state.corporateAccounts.fixedAnnualTaxFreeIncome =
     (plan.corp_fixed_annual_tax_free_income as number) ?? null;

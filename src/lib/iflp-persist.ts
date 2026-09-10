@@ -79,6 +79,11 @@ function buildPlan(state: IflpFormState): Row {
     corp_fixed_contribution_period_years: state.corporateAccounts.fixedContributionPeriodYears,
     corp_fixed_estate_value: state.corporateAccounts.fixedEstateValue,
     corp_fixed_total_lifetime_value: state.corporateAccounts.fixedTotalLifetimeValue,
+    // Document inclusion switches, stored whole. Writing every key (rather than
+    // only the non-default ones) means a stored plan records what the planner
+    // actually chose, so a later change to defaultPlanOptions can't silently
+    // re-include a section the planner had turned off.
+    options: { ...state.planOptions },
   };
 }
 

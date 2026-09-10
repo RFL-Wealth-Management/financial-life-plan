@@ -69,6 +69,15 @@ export const incomeFrequencyOptions: FieldOption[] = [
   { label: "Annually", value: "annually" },
 ];
 
+// Pension Bucket type, chosen when the bucket is included. Not a DB enum — it
+// persists inside the plans.options jsonb blob, and it selects which pension page
+// the document generates. Keep in sync with the PensionType union in iflp-form.ts.
+export const pensionTypeOptions: FieldOption[] = [
+  { label: "PPP — Personal Pension Plan", value: "ppp" },
+  { label: "Other Pension Plan (IPP / Medicus)", value: "other_pension" },
+  { label: "Defined Benefit Pension Plan", value: "defined_benefit" },
+];
+
 // The "Your Priorities" TagInput list. Suggested set from the template
 // placeholder "Retirement, Tax Efficiency, Education, Protection", plus the
 // extras already used in the Storybook story. Not closed: the TagInput's

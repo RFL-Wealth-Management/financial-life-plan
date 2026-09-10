@@ -131,6 +131,42 @@ export interface CorporateAccountsInput {
   fixedTotalLifetimeValue: number | null;
 }
 
+// Which optional sections this plan includes. These are presentation switches,
+// not figures: each one gates whether an account's page (and its rows in the
+// shared tables) appears in the generated document, via a boolean section tag in
+// templates/iflp.tagged.docx.
+//
+// Grouped rather than spread across IflpFormState because they persist together
+// as one plans.options jsonb value, and because "the switches" is a thing the
+// planner reasons about as a set.
+//
+// Accounts default to included: a plan that has always had a TFSA page should
+// keep it without the planner opting in, and an absent key in a stored blob
+// therefore reads as `true`. Pension is the exception — it is new, and a plan
+// that never mentioned one should not gain a pension page on load.
+export interface PlanOptions {
+  includeTfsa: boolean;
+  includeRrsp: boolean;
+  includeFhsa: boolean;
+  includeNonRegistered: boolean;
+  includePension: boolean;
+  // Which pension page to generate. "" until a type is chosen; only meaningful
+  // when includePension is true. Keep in sync with pensionTypeOptions.
+  pensionType: PensionType;
+}
+
+// Keep in sync with pensionTypeOptions in field-options.ts.
+export type PensionType = "" | "ppp" | "other_pension" | "defined_benefit";
+
+export const defaultPlanOptions: PlanOptions = {
+  includeTfsa: true,
+  includeRrsp: true,
+  includeFhsa: true,
+  includeNonRegistered: true,
+  includePension: false,
+  pensionType: "",
+};
+
 // A priority the option list doesn't cover, entered by the planner. The
 // document's "Your Priorities" table is Priority | Desired Outcome, and its six
 // standard rows are fixed copy in the template — so a custom priority needs
@@ -202,6 +238,8 @@ export interface IflpFormState {
   // Step 4 — corporate account figures (per-client account figures live on the
   // clients; per-child education figures live on the children).
   corporateAccounts: CorporateAccountsInput;
+  // Which optional sections this plan includes (see PlanOptions).
+  planOptions: PlanOptions;
   // Step 6 — Implementation (dynamic add/remove tables, personal + corporate).
   transfersPersonal: TransferRow[];
   transfersCorporate: TransferRow[];
@@ -307,6 +345,7 @@ export const initialIflpFormState: IflpFormState = {
     fixedEstateValue: null,
     fixedTotalLifetimeValue: null,
   },
+  planOptions: { ...defaultPlanOptions },
   transfersPersonal: [],
   transfersCorporate: [],
   fundingPersonal: [],

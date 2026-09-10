@@ -122,6 +122,16 @@ export const mockIflpFormState: IflpFormState = {
     fixedEstateValue: 3500000,
     fixedTotalLifetimeValue: 8000000,
   },
+  // Deliberately mixed rather than all-true, so exercising the mock shows both
+  // an included and an excluded account rather than only the happy path.
+  planOptions: {
+    includeTfsa: true,
+    includeRrsp: true,
+    includeFhsa: false,
+    includeNonRegistered: false,
+    includePension: true,
+    pensionType: "ppp",
+  },
   transfersPersonal: [
     {
       party: "client1",
