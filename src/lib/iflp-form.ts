@@ -29,14 +29,18 @@ export interface IflpClient {
   incomeStructure: IncomeStructure;
   incomeAlignmentAmount: number | null;
   // Step 4 — registered accounts (contribution + projected value, per client).
-  tfsaContribution: number | null;
+  // Contributions are entered and stored MONTHLY; the annual figure the document
+  // prints is derived (× 12) by annualFromMonthly, never entered or stored, so
+  // the two can't drift apart.
+  tfsaMonthlyContribution: number | null;
   tfsaEstimatedValue: number | null;
-  rrspContribution: number | null;
+  rrspMonthlyContribution: number | null;
   rrspEstimatedValue: number | null;
-  pppContribution: number | null;
+  pppMonthlyContribution: number | null;
   pppEstimatedValue: number | null;
-  // Step 4 — Corporate Fixed Bucket annual contribution, per client.
-  corporateFixedContribution: number | null;
+  // Step 4 — Corporate Fixed Bucket contribution, per client (monthly; the
+  // document's annual column is derived).
+  corporateFixedMonthlyContribution: number | null;
   // Step 5 — Insurance, per client. Each is an amount plus a modifier (the term
   // length / product / benefit term chosen from a dropdown).
   termLifeCoverage: number | null;
@@ -103,6 +107,9 @@ export interface RetirementIncomeInput {
 // Liquid Bucket rows against the corporation only (MPC), and the Corporate Fixed
 // Bucket's "delivers" metrics are single figures for the whole plan.
 export interface CorporateAccountsInput {
+  // Monthly, like every other account contribution. The document's Corporate
+  // Liquid table prints the monthly figure (not an annual one), so this feeds
+  // {corpLiquidMonthly} directly; the wizard still shows the derived annual.
   liquidMonthlyContribution: number | null;
   liquidEstimatedValue: number | null;
   fixedAnnualTaxFreeIncome: number | null;
@@ -208,13 +215,13 @@ export const emptyClient: IflpClient = {
   oasAmount: null,
   incomeStructure: "salary",
   incomeAlignmentAmount: null,
-  tfsaContribution: null,
+  tfsaMonthlyContribution: null,
   tfsaEstimatedValue: null,
-  rrspContribution: null,
+  rrspMonthlyContribution: null,
   rrspEstimatedValue: null,
-  pppContribution: null,
+  pppMonthlyContribution: null,
   pppEstimatedValue: null,
-  corporateFixedContribution: null,
+  corporateFixedMonthlyContribution: null,
   termLifeCoverage: null,
   termLifeTerm: "30 Years",
   criticalIllnessCoverage: null,
@@ -704,6 +711,16 @@ function formatNameList(names: string[]): string {
 }
 
 // "$285,000" from 285000. Null -> "".
+// Monthly -> annual. The single place the ×12 conversion happens: contributions
+// are entered and stored monthly, and every annual contribution figure in the
+// wizard and the document is derived through here, so changing a monthly amount
+// updates the annual one everywhere by construction.
+export const MONTHS_PER_YEAR = 12;
+
+export function annualFromMonthly(monthly: number | null): number | null {
+  return monthly == null ? null : monthly * MONTHS_PER_YEAR;
+}
+
 function formatCurrency(n: number | null): string {
   if (n == null || Number.isNaN(n)) return "";
   return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -736,15 +753,18 @@ function formatYears(n: number | null): string {
 }
 
 // A registered-account table (TFSA/RRSP/PPP) as one row per client, reading the
-// given contribution/value fields off each client.
+// given contribution/value fields off each client. `monthlyContribution` names a
+// MONTHLY field; the table's "Annual Contribution" column is derived from it.
 function accountRows(
   state: IflpFormState,
-  contribution: keyof IflpClient,
+  monthlyContribution: keyof IflpClient,
   estimatedValue: keyof IflpClient
 ): AccountRow[] {
   return clientRecords(state).map((c) => ({
     name: fullName(c),
-    contribution: formatCurrency(c[contribution] as number | null),
+    contribution: formatCurrency(
+      annualFromMonthly(c[monthlyContribution] as number | null)
+    ),
     estimatedValue: formatCurrency(c[estimatedValue] as number | null),
   }));
 }
@@ -938,7 +958,9 @@ export function buildIflpDocPayload(
 
   const corporateFixed = clientRecords(state).map((c) => ({
     name: fullName(c),
-    contribution: formatCurrency(c.corporateFixedContribution),
+    contribution: formatCurrency(
+      annualFromMonthly(c.corporateFixedMonthlyContribution)
+    ),
   }));
 
   const methodLabel = (v: string): string =>
@@ -1015,9 +1037,9 @@ export function buildIflpDocPayload(
     monthlySavingsTotal: formatCurrency(
       sumOrNull([ms.personal, ms.corpLiquid, ms.corpFixed])
     ),
-    tfsa: accountRows(state, "tfsaContribution", "tfsaEstimatedValue"),
-    rrsp: accountRows(state, "rrspContribution", "rrspEstimatedValue"),
-    ppp: accountRows(state, "pppContribution", "pppEstimatedValue"),
+    tfsa: accountRows(state, "tfsaMonthlyContribution", "tfsaEstimatedValue"),
+    rrsp: accountRows(state, "rrspMonthlyContribution", "rrspEstimatedValue"),
+    ppp: accountRows(state, "pppMonthlyContribution", "pppEstimatedValue"),
     corpLiquidMonthly: formatCurrency(ca.liquidMonthlyContribution),
     corpLiquidEstimatedValue: formatCurrency(ca.liquidEstimatedValue),
     corporateFixed,

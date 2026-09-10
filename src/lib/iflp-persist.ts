@@ -203,39 +203,42 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
   }));
 
   // plan_accounts — registered + corporate accounts fold into one table,
-  // distinguished by account_type. TFSA/RRSP/PPP/Corporate-Fixed contributions
-  // are annual and per client; the Corporate Liquid bucket is monthly and rows
-  // against the corporation only.
+  // distinguished by account_type. Every contribution is stored MONTHLY
+  // (contribution_frequency = 'monthly'); the annual figures the document prints
+  // are derived at render time, so there is one stored number per account and no
+  // way for a monthly and an annual amount to disagree. TFSA/RRSP/PPP/
+  // Corporate-Fixed are per client; the Corporate Liquid bucket rows against the
+  // corporation only.
   const accounts: Row[] = [
     ...perClient((c, key, i) => ({
       account_type: "tfsa",
       party_id: partyId(key),
-      contribution: c.tfsaContribution,
-      contribution_frequency: "annual",
+      contribution: c.tfsaMonthlyContribution,
+      contribution_frequency: "monthly",
       estimated_value: c.tfsaEstimatedValue,
       sort_order: i,
     })),
     ...perClient((c, key, i) => ({
       account_type: "rrsp",
       party_id: partyId(key),
-      contribution: c.rrspContribution,
-      contribution_frequency: "annual",
+      contribution: c.rrspMonthlyContribution,
+      contribution_frequency: "monthly",
       estimated_value: c.rrspEstimatedValue,
       sort_order: i,
     })),
     ...perClient((c, key, i) => ({
       account_type: "ppp",
       party_id: partyId(key),
-      contribution: c.pppContribution,
-      contribution_frequency: "annual",
+      contribution: c.pppMonthlyContribution,
+      contribution_frequency: "monthly",
       estimated_value: c.pppEstimatedValue,
       sort_order: i,
     })),
     ...perClient((c, key, i) => ({
       account_type: "corporate_fixed",
       party_id: partyId(key),
-      contribution: c.corporateFixedContribution,
-      contribution_frequency: "annual",
+      contribution: c.corporateFixedMonthlyContribution,
+      contribution_frequency: "monthly",
       estimated_value: null,
       sort_order: i,
     })),

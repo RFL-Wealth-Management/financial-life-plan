@@ -15,6 +15,7 @@ import {
   TextInput,
   NumberInput,
   CurrencyInput,
+  DerivedCurrency,
   SelectInput,
   MonthYearPicker,
   TagInput,
@@ -40,6 +41,7 @@ import {
   emptyFundingRow,
   deriveClients,
   partyOptions,
+  annualFromMonthly,
   type IflpChild,
   type IflpClient,
   type OtherPriority,
@@ -808,14 +810,11 @@ function RetirementStep({
             </span>
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-foreground/70">
-                Monthly contribution
-              </label>
-              <div className="rounded-lg border border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/40">
-                N/A
-              </div>
-            </div>
+            <DerivedCurrency
+              label="Monthly contribution"
+              value={null}
+              emptyText="N/A"
+            />
             <CurrencyInput
               id="bucket-gov-annual"
               label="Delivers / year"
@@ -1028,13 +1027,13 @@ function RetirementStep({
 
 // Numeric per-client fields on IflpClient (used by the account tables below).
 type ClientMoneyField =
-  | "tfsaContribution"
+  | "tfsaMonthlyContribution"
   | "tfsaEstimatedValue"
-  | "rrspContribution"
+  | "rrspMonthlyContribution"
   | "rrspEstimatedValue"
-  | "pppContribution"
+  | "pppMonthlyContribution"
   | "pppEstimatedValue"
-  | "corporateFixedContribution";
+  | "corporateFixedMonthlyContribution";
 
 function AccountsStep({
   state,
@@ -1063,13 +1062,13 @@ function AccountsStep({
           maximumFractionDigits: 0,
         });
 
-  // One row per client with a contribution field and an optional value field.
+  // One row per client: the monthly contribution is entered, the annual figure
+  // beside it is derived (× 12) and read-only, and an estimated value follows
+  // for the account types that have one.
   const perClient = (
     idPrefix: string,
-    labelA: string,
-    fieldA: ClientMoneyField,
-    labelB?: string,
-    fieldB?: ClientMoneyField
+    monthlyField: ClientMoneyField,
+    estimatedValueField?: ClientMoneyField
   ) =>
     clients.length === 0 ? (
       <p className="text-sm text-foreground/50">
@@ -1082,21 +1081,29 @@ function AccountsStep({
         return (
           <div key={key} className="space-y-2">
             <p className="text-xs font-medium text-foreground/70">{p.name}</p>
-            <div className={fieldB ? "grid grid-cols-2 gap-3" : ""}>
+            <div className="grid grid-cols-2 gap-3">
               <CurrencyInput
-                id={`${idPrefix}-${key}-a`}
-                label={labelA}
+                id={`${idPrefix}-${key}-monthly`}
+                label="Monthly Contribution"
                 prefix="$"
-                value={c[fieldA]}
-                onChange={(v) => patchClient(key, { [fieldA]: v })}
+                value={c[monthlyField]}
+                onChange={(v) => patchClient(key, { [monthlyField]: v })}
               />
-              {fieldB && (
+              <DerivedCurrency
+                id={`${idPrefix}-${key}-annual`}
+                label="Annual Contribution"
+                value={annualFromMonthly(c[monthlyField])}
+                hint="12 × monthly"
+              />
+              {estimatedValueField && (
                 <CurrencyInput
-                  id={`${idPrefix}-${key}-b`}
-                  label={labelB ?? ""}
+                  id={`${idPrefix}-${key}-value`}
+                  label="Estimated Value"
                   prefix="$"
-                  value={c[fieldB]}
-                  onChange={(v) => patchClient(key, { [fieldB]: v })}
+                  value={c[estimatedValueField]}
+                  onChange={(v) =>
+                    patchClient(key, { [estimatedValueField]: v })
+                  }
                 />
               )}
             </div>
@@ -1119,15 +1126,15 @@ function AccountsStep({
   return (
     <div className="space-y-8">
       <CollapsibleSection title="TFSA">
-        {perClient("tfsa", "Annual Contribution", "tfsaContribution", "Estimated Value", "tfsaEstimatedValue")}
+        {perClient("tfsa", "tfsaMonthlyContribution", "tfsaEstimatedValue")}
       </CollapsibleSection>
 
       <CollapsibleSection title="RRSP">
-        {perClient("rrsp", "Annual Contribution", "rrspContribution", "Estimated Value", "rrspEstimatedValue")}
+        {perClient("rrsp", "rrspMonthlyContribution", "rrspEstimatedValue")}
       </CollapsibleSection>
 
       <CollapsibleSection title="Personal Pension Plan (PPP)">
-        {perClient("ppp", "Annual Contribution", "pppContribution", "Estimated Value", "pppEstimatedValue")}
+        {perClient("ppp", "pppMonthlyContribution", "pppEstimatedValue")}
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -1145,6 +1152,12 @@ function AccountsStep({
             value={ca.liquidMonthlyContribution}
             onChange={(v) => setCA({ liquidMonthlyContribution: v })}
           />
+          <DerivedCurrency
+            id="corp-liquid-annual"
+            label="Annual Contribution"
+            value={annualFromMonthly(ca.liquidMonthlyContribution)}
+            hint="12 × monthly"
+          />
           <CurrencyInput
             id="corp-liquid-value"
             label="Estimated Value at Retirement"
@@ -1156,8 +1169,8 @@ function AccountsStep({
       </CollapsibleSection>
 
       <CollapsibleSection title="Corporate Fixed Bucket">
-        <p className="text-xs font-medium text-foreground/60">Annual contribution</p>
-        {perClient("corpfixed", "Annual Contribution", "corporateFixedContribution")}
+        <p className="text-xs font-medium text-foreground/60">Contributions</p>
+        {perClient("corpfixed", "corporateFixedMonthlyContribution")}
         <p className="mt-2 text-xs font-medium text-foreground/60">
           What it delivers
         </p>

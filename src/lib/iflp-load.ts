@@ -11,6 +11,7 @@
 
 import {
   initialIflpFormState,
+  MONTHS_PER_YEAR,
   type IflpFormState,
   type IflpClient,
   type IncomeFrequency,
@@ -179,9 +180,25 @@ export async function loadPlanState(
   }
 
   // --- Accounts --------------------------------------------------------------
+  // Contributions are stored monthly. Plans saved before that convention wrote an
+  // annual figure with contribution_frequency = 'annual', so those are converted
+  // on read and old plans open with a sensible monthly amount.
+  //
+  // TODO(RFL): confirm the rounding. A $7,000 annual TFSA becomes $583/month,
+  // which re-derives to $6,996 — a $4 drift on plans saved before this change.
+  // See the note in the summary; alternatives are rounding up, or leaving legacy
+  // plans' annual figure untouched.
+  const monthlyContribution = (r: AnyRow): number | null => {
+    const amount = (r.contribution as number) ?? null;
+    if (amount == null) return null;
+    return r.contribution_frequency === "annual"
+      ? Math.round(amount / MONTHS_PER_YEAR)
+      : amount;
+  };
+
   for (const r of (plan.plan_accounts as AnyRow[]) ?? []) {
     const type = r.account_type as string;
-    const contribution = (r.contribution as number) ?? null;
+    const contribution = monthlyContribution(r);
     const estimated = (r.estimated_value as number) ?? null;
     if (type === "corporate_liquid") {
       state.corporateAccounts.liquidMonthlyContribution = contribution;
@@ -191,16 +208,16 @@ export async function loadPlanState(
     const c = clientFor(keyOf(r.party_id));
     if (!c) continue;
     if (type === "tfsa") {
-      c.tfsaContribution = contribution;
+      c.tfsaMonthlyContribution = contribution;
       c.tfsaEstimatedValue = estimated;
     } else if (type === "rrsp") {
-      c.rrspContribution = contribution;
+      c.rrspMonthlyContribution = contribution;
       c.rrspEstimatedValue = estimated;
     } else if (type === "ppp") {
-      c.pppContribution = contribution;
+      c.pppMonthlyContribution = contribution;
       c.pppEstimatedValue = estimated;
     } else if (type === "corporate_fixed") {
-      c.corporateFixedContribution = contribution;
+      c.corporateFixedMonthlyContribution = contribution;
     }
   }
 

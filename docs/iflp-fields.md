@@ -154,16 +154,28 @@ currency columns:
 | Field | Input |
 | --- | --- |
 | Client | `SelectInput` |
-| Contribution | `CurrencyInput` |
+| Monthly Contribution | `CurrencyInput` |
+| Annual Contribution | `DerivedCurrency` — read-only, 12 × monthly |
 | Estimated value | `CurrencyInput` |
+
+**Contributions are entered monthly everywhere.** The annual figure is derived
+through `annualFromMonthly` in `iflp-form.ts` and is never typed or stored, so a
+monthly amount and its annual counterpart cannot drift apart. `plan_accounts`
+stores the monthly amount with `contribution_frequency = 'monthly'`; rows saved
+before this convention (frequency `'annual'`) are converted on read in
+`iflp-load.ts`.
+
+The document is unchanged by this: the TFSA/RRSP/PPP and Corporate Fixed tables
+still print a single **Annual Contribution** column, now fed by the derived
+value, and the Corporate Liquid table still prints its **monthly** figure.
 
 The two corporate buckets differ from those and from **each other** — worth
 noting so they don't get built as one reusable component by mistake:
 
 | Table | Columns | Rows |
 | --- | --- | --- |
-| Corporate **Liquid** Bucket | Client, Monthly Contribution, Estimated Value at Retirement | `MPC` only |
-| Corporate **Fixed** Bucket | Client, Annual Contribution — **no Estimated Value** | `Client 1`, `Client 2` |
+| Corporate **Liquid** Bucket | Client, Monthly Contribution (+ derived annual in the wizard only), Estimated Value at Retirement | `MPC` only |
+| Corporate **Fixed** Bucket | Client, Monthly Contribution + derived Annual — **no Estimated Value** | `Client 1`, `Client 2` |
 
 ## 10. Education funding — **Table**
 
