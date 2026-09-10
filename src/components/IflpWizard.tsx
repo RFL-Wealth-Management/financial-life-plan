@@ -24,7 +24,6 @@ import {
 import {
   priorityOptions,
   incomeStructureOptions,
-  incomeFrequencyOptions,
   termLengthOptions,
   criticalIllnessProductOptions,
   benefitTermOptions,
@@ -46,7 +45,6 @@ import {
   type IflpClient,
   type OtherPriority,
   type IflpFormState,
-  type IncomeFrequency,
   type IncomeStructure,
   type RetirementBucketsInput,
   type AccessToCapitalInput,
@@ -599,6 +597,9 @@ function GoalsStep({
   state: IflpFormState;
   patch: (u: Partial<IflpFormState>) => void;
 }) {
+  // "What success looks like" reads its four figures from later steps; the
+  // Corporate Fixed Bucket supplies two of them.
+  const ca = state.corporateAccounts;
   // Projected Access to Capital — fixed year rows (labels static; amounts only).
   const ac = state.accessToCapital;
   const setAC = (u: Partial<AccessToCapitalInput>) =>
@@ -635,58 +636,35 @@ function GoalsStep({
           What success looks like
         </legend>
         <p className="text-xs text-foreground/50">
-          Free text — enter the phrase exactly as it should read in the document.
+          Every figure here is calculated from what you enter later in the plan —
+          fill in steps 3 and 4 and these fill themselves.
         </p>
-        <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-          <CurrencyInput
-            id="retirement-income-amount"
+        <div className="grid grid-cols-2 gap-3">
+          <DerivedCurrency
+            id="success-retirement-income"
             label="Retirement Income"
-            prefix="$"
-            value={state.retirementIncomeAmount}
-            onChange={(retirementIncomeAmount) => patch({ retirementIncomeAmount })}
-            placeholder="1,200,000"
+            value={retirementIncomeTotal(state)}
+            hint="Step 3 · Projected Annual Retirement Income total"
           />
-          <SelectInput
-            id="retirement-income-frequency"
-            label="Retirement income frequency"
-            hideLabel
-            options={incomeFrequencyOptions}
-            value={state.retirementIncomeFrequency ?? "annually"}
-            onChange={(v) => patch({ retirementIncomeFrequency: v as IncomeFrequency })}
-          />
-        </div>
-        <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-          <CurrencyInput
-            id="passive-income-amount"
+          <DerivedCurrency
+            id="success-tax-free-income"
             label="Tax-Free Income"
-            prefix="$"
-            value={state.passiveIncomeAmount}
-            onChange={(passiveIncomeAmount) => patch({ passiveIncomeAmount })}
-            placeholder="300,000"
+            value={ca.fixedAnnualTaxFreeIncome}
+            hint="Step 4 · Corporate Fixed Bucket"
           />
-          <SelectInput
-            id="passive-income-frequency"
-            label="Tax-free income frequency"
-            hideLabel
-            options={incomeFrequencyOptions}
-            value={state.passiveIncomeFrequency ?? "annually"}
-            onChange={(v) => patch({ passiveIncomeFrequency: v as IncomeFrequency })}
+          <DerivedCurrency
+            id="success-access-to-capital"
+            label="Access to Capital"
+            value={ac.year10}
+            hint="Year 10, below"
+          />
+          <DerivedCurrency
+            id="success-estate-value"
+            label="Estate Value"
+            value={ca.fixedEstateValue}
+            hint="Step 4 · Corporate Fixed Bucket"
           />
         </div>
-        <TextInput
-          id="success-liquid-capital"
-          label="Access to Capital"
-          value={state.successLiquidCapital}
-          onChange={(successLiquidCapital) => patch({ successLiquidCapital })}
-          placeholder="$5.0M+ available"
-        />
-        <TextInput
-          id="success-net-worth"
-          label="Estate Value"
-          value={state.successNetWorth}
-          onChange={(successNetWorth) => patch({ successNetWorth })}
-          placeholder="$20.0M+"
-        />
       </fieldset>
 
       <fieldset className="space-y-3">

@@ -14,11 +14,12 @@
 // the plan's owner to auth.uid() and returns the new plan id.
 
 import { randomUUID } from "node:crypto";
+import { moneyOrBlank } from "@/lib/format";
+import { retirementIncomeTotal } from "@/lib/iflp-derive";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   clientRecords,
   deriveClients,
-  formatIncome,
   type IflpClient,
   type IflpFormState,
   type PartyKey,
@@ -67,14 +68,16 @@ function buildPlan(state: IflpFormState): Row {
     household_income: state.householdIncome,
     priorities: state.priorities,
     target_independence_age: state.targetIndependenceAge,
-    // Success figures persist as the composed strings the document renders
-    // (e.g. "$1,200,000 annually"); the plain-text ones store verbatim.
-    success_retirement_income:
-      formatIncome(state.retirementIncomeAmount, state.retirementIncomeFrequency) || null,
+    // "What Success Looks Like" is derived, not entered, so these columns are now
+    // a snapshot rather than an input: they record the figures this plan's
+    // document actually printed. Nothing reads them back — loadPlanState
+    // recomputes from the source fields — but keeping them written means a saved
+    // plan still says what was sent to the client.
+    success_retirement_income: moneyOrBlank(retirementIncomeTotal(state)) || null,
     success_passive_income:
-      formatIncome(state.passiveIncomeAmount, state.passiveIncomeFrequency) || null,
-    success_liquid_capital: trimOrNull(state.successLiquidCapital),
-    success_net_worth: trimOrNull(state.successNetWorth),
+      moneyOrBlank(state.corporateAccounts.fixedAnnualTaxFreeIncome) || null,
+    success_liquid_capital: moneyOrBlank(state.accessToCapital.year10) || null,
+    success_net_worth: moneyOrBlank(state.corporateAccounts.fixedEstateValue) || null,
     corp_fixed_annual_tax_free_income: state.corporateAccounts.fixedAnnualTaxFreeIncome,
     corp_fixed_contribution_period_years: state.corporateAccounts.fixedContributionPeriodYears,
     corp_fixed_estate_value: state.corporateAccounts.fixedEstateValue,

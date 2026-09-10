@@ -82,12 +82,6 @@ export const mockIflpFormState: IflpFormState = {
     },
   ],
   targetIndependenceAge: 55,
-  retirementIncomeAmount: 1200000,
-  retirementIncomeFrequency: "annually",
-  passiveIncomeAmount: 300000,
-  passiveIncomeFrequency: "annually",
-  successLiquidCapital: "$5.0M+ available",
-  successNetWorth: "$20.0M+",
   accessToCapital: {
     year2: 250000,
     year4: 1200000,

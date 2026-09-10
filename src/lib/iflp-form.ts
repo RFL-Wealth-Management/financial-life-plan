@@ -218,16 +218,10 @@ export interface IflpFormState {
   // The age at which the plan targets financial independence. Also drives the
   // Profile "Retirement Goal" row.
   targetIndependenceAge: number | null;
-  // "What Success Looks Like" income figures — an amount plus how often it
-  // recurs. Composed into the document string (e.g. "$1,200,000 annually").
-  retirementIncomeAmount: number | null;
-  retirementIncomeFrequency: IncomeFrequency;
-  passiveIncomeAmount: number | null;
-  passiveIncomeFrequency: IncomeFrequency;
-  // The remaining two success figures are free-text prose the planner enters
-  // verbatim (e.g. "$5.0M+ available", "$20.0M+") — not simple currency.
-  successLiquidCapital: string;
-  successNetWorth: string;
+  // The "What Success Looks Like" table has no state of its own: all four of its
+  // figures are derived from later steps (see buildIflpDocPayload). They were
+  // typed here as well until RFL asked for the plan to stop carrying the same
+  // number twice.
   // Step 2 — Projected Access To Capital table (fixed year rows; amounts only).
   accessToCapital: AccessToCapitalInput;
   // Step 3 — Projected Annual Retirement Income summary (fixed source rows).
@@ -248,10 +242,6 @@ export interface IflpFormState {
   monthlyPersonal: FundingRow[];
   monthlyCorporate: FundingRow[];
 }
-
-// How often a success income figure recurs. The value doubles as the adverb
-// rendered in the document, so keep it in sync with incomeFrequencyOptions.
-export type IncomeFrequency = "bi-weekly" | "monthly" | "annually";
 
 // How a client draws income from the corporation. Keep in sync with
 // incomeStructureOptions in field-options.ts and the plan_income_alignment
@@ -305,12 +295,6 @@ export const initialIflpFormState: IflpFormState = {
   priorities: [],
   otherPriorities: [],
   targetIndependenceAge: null,
-  retirementIncomeAmount: null,
-  retirementIncomeFrequency: "annually",
-  passiveIncomeAmount: null,
-  passiveIncomeFrequency: "annually",
-  successLiquidCapital: "",
-  successNetWorth: "",
   accessToCapital: {
     year2: null,
     year4: null,
@@ -772,14 +756,6 @@ export function annualFromMonthly(monthly: number | null): number | null {
   return monthly == null ? null : monthly * MONTHS_PER_YEAR;
 }
 
-// "$1,200,000 annually" from (1200000, "annually"). No amount -> "" (the
-// frequency alone is meaningless without a number). Exported so the persistence
-// layer stores the identical composed string the document renders.
-export function formatIncome(amount: number | null, frequency: IncomeFrequency): string {
-  const money = formatCurrency(amount);
-  return money ? `${money} ${frequency}` : "";
-}
-
 // A registered-account table (TFSA/RRSP/PPP) as one row per client, reading the
 // given contribution/value fields off each client. `monthlyContribution` names a
 // MONTHLY field; the table's "Annual Contribution" column is derived from it.
@@ -1079,16 +1055,14 @@ export function buildIflpDocPayload(
       state.targetIndependenceAge == null ? "" : String(state.targetIndependenceAge),
     retirementGoal:
       state.targetIndependenceAge == null ? "" : `Age ${state.targetIndependenceAge}`,
-    successRetirementIncome: formatIncome(
-      state.retirementIncomeAmount,
-      state.retirementIncomeFrequency
-    ),
-    successPassiveIncome: formatIncome(
-      state.passiveIncomeAmount,
-      state.passiveIncomeFrequency
-    ),
-    successLiquidCapital: state.successLiquidCapital.trim(),
-    successNetWorth: state.successNetWorth.trim(),
+    // "What Success Looks Like" — every row derived, none entered. The payload
+    // keys keep their legacy names because they are the {tags} already typed into
+    // iflp.tagged.docx; the template's row labels are Retirement Income,
+    // Tax-Free Income, Access To Capital and Estate Value respectively.
+    successRetirementIncome: formatCurrency(retirementIncomeTotal(state)),
+    successPassiveIncome: formatCurrency(ca.fixedAnnualTaxFreeIncome),
+    successLiquidCapital: formatCurrency(state.accessToCapital.year10),
+    successNetWorth: formatCurrency(ca.fixedEstateValue),
     accessCapitalYear2: formatCurrency(state.accessToCapital.year2),
     accessCapitalYear4: formatCurrency(state.accessToCapital.year4),
     accessCapitalYear6: formatCurrency(state.accessToCapital.year6),

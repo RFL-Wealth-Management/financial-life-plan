@@ -15,24 +15,10 @@ import {
   MONTHS_PER_YEAR,
   type IflpFormState,
   type IflpClient,
-  type IncomeFrequency,
   type PartyKey,
   type PlanOptions,
 } from "@/lib/iflp-form";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// "$1,200,000 annually" -> { amount: 1200000, frequency: "annually" }. Anything
-// unparseable (incl. null/"") yields a blank amount at the default frequency.
-function parseIncome(s: string | null): {
-  amount: number | null;
-  frequency: IncomeFrequency;
-} {
-  if (!s) return { amount: null, frequency: "annually" };
-  const m = s.match(/\$?([\d,]+)\s*(bi-weekly|monthly|annually)?/i);
-  const amount = m?.[1] ? Number(m[1].replace(/,/g, "")) : null;
-  const frequency = (m?.[2]?.toLowerCase() as IncomeFrequency) || "annually";
-  return { amount: Number.isFinite(amount as number) ? amount : null, frequency };
-}
 
 const PLAN_SELECT = `
   *,
@@ -84,14 +70,10 @@ export async function loadPlanState(
   state.priorities = (plan.priorities as string[]) ?? [];
   state.targetIndependenceAge = (plan.target_independence_age as number) ?? null;
 
-  const ri = parseIncome(plan.success_retirement_income as string | null);
-  state.retirementIncomeAmount = ri.amount;
-  state.retirementIncomeFrequency = ri.frequency;
-  const pi = parseIncome(plan.success_passive_income as string | null);
-  state.passiveIncomeAmount = pi.amount;
-  state.passiveIncomeFrequency = pi.frequency;
-  state.successLiquidCapital = (plan.success_liquid_capital as string) ?? "";
-  state.successNetWorth = (plan.success_net_worth as string) ?? "";
+  // plans.success_* are deliberately NOT read back. They are a snapshot of what
+  // the document printed; the form recomputes all four from their source fields
+  // (retirement income total, Corporate Fixed figures, Access to Capital year 10),
+  // so reading the stored strings could only reintroduce a stale value.
 
   // Inclusion switches. A key absent from the blob falls back to the app default,
   // so plans saved before plans.options existed load with every account included

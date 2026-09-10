@@ -79,15 +79,28 @@ full name with age (`Emma Chen (10), Liam Chen (7)`).
 
 ## 4. What Success Looks Like
 
-All four are free text, not currency — the template writes `$0.0M+ available`
-and `$00.0M+`, which are prose. `types.ts` already types them as `string`.
+**Nothing here is entered.** All four figures are derived from later steps, so the
+section is read-only — the planner fills steps 3 and 4 and this table fills
+itself. The template's fifth row, `Education Funding | Fully funded`, is fixed
+copy with no tag.
 
-| Field | Placeholder | Input |
+| Row (template label) | Source | Payload key |
 | --- | --- | --- |
-| Retirement income | `$0,000,000 annually` | `TextInput` |
-| Passive income | `$000,000 annually` | `TextInput` |
-| Liquid capital | `$0.0M+ available` | `TextInput` |
-| Net worth | `$00.0M+` | `TextInput` |
+| Retirement Income | Step 3 · Projected Annual Retirement Income total | `successRetirementIncome` |
+| Tax-Free Income | Step 4 · Corporate Fixed Bucket → Annual Tax-Free Income | `successPassiveIncome` |
+| Access To Capital | Projected Access to Capital → Year 10 | `successLiquidCapital` |
+| Estate Value | Step 4 · Corporate Fixed Bucket → Estate Value | `successNetWorth` |
+
+The payload keys keep their legacy names (`successPassiveIncome`,
+`successLiquidCapital`, `successNetWorth`) because they are the `{tags}` already
+typed into `iflp.tagged.docx` — renaming them would mean re-tagging the template
+by hand for no gain. The row labels above are what the document actually says.
+
+These used to be planner-entered: the top two as an amount plus a frequency
+adverb ("$1,200,000 annually"), the bottom two as free-text prose ("$5.0M+
+available", "$20.0M+"). Deriving them means they now render as exact currency.
+`plans.success_*` still stores the rendered strings, but only as a snapshot of
+what a given document printed — nothing reads them back.
 
 ### Projected Access to Capital — **Table**
 
