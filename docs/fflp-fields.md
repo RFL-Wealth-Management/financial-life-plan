@@ -42,10 +42,13 @@ sum, so it is never stored.
 
 ### Step 3 - Buckets & Income
 
-New: Government per-person CPP/OAS monthly (`govCpp1Monthly` ... `govOas2Monthly`; annual
-is monthly x 12, totals summed); Pension/PPP monthly + annual per client; Corporate Liquid
-monthly + annual; per-bucket estate values for the income summary (`corpEstate`,
-`insuranceEstate` - government and pension estate are $0 by definition).
+Government has **no fields**: CPP and OAS are entered once per client on the IFLP, as
+annual figures, and this table's monthly column is derived with `monthlyFromAnnual`. The
+bucket total is `governmentBenefitsTotal(base)`.
+
+New: Pension/PPP monthly + annual per client; Corporate Liquid monthly + annual; per-bucket
+estate values for the income summary (`corpEstate`, `insuranceEstate` - government and
+pension estate are $0 by definition).
 
 ### Step 4 - Insurance & Access to Capital
 
@@ -74,7 +77,7 @@ which render as docxtemplater loops. Protection Planning is two booleans, `ciInP
 
 The FFLP form was designed against a much thinner IFLP. Main has since grown dynamic
 accounts, `iflp-derive.ts`, plan-level option switches and derived monthly contributions,
-and roughly 31 of the 78 figures the FFLP collects now exist in the base plan already --
+and roughly 27 of the 74 figures the FFLP collects now exist in the base plan already --
 some as entered fields, some as `iflp-derive` selectors.
 
 **See `docs/fflp-iflp-overlap.md`** for the field-by-field map, the unit and granularity

@@ -8,14 +8,15 @@ Counts below are from `FflpFormState` and `buildFflpDocPayload` in `src/lib/fflp
 
 ## Where things stand
 
-The FFLP asks the planner to type **78 fields**. It reads **7 tags** from the IFLP --
+The FFLP asks the planner to type **74 fields** (78 before the Government bucket was
+derived away). It reads **7 tags** from the IFLP --
 `coverClients`, `client1Name`, `client2Name`, `welcomeGreeting`, `advisorName`,
 `advisorPhone`, `advisorEmail` -- all arriving through the `...shared` spread of
 `buildIflpDocPayload`. Three more come straight off the base state: `coverDate`
 (`planMonth` + `planYear`), `retirementAge` (`targetIndependenceAge`), and the child
 first names.
 
-Of the 78 typed fields, about **31 already exist in the IFLP**, as entered fields or as
+Of the 74 still typed, about **27 already exist in the IFLP**, as entered fields or as
 `iflp-derive` selectors.
 
 ## The blocker: the wizard cannot see the plan
@@ -34,13 +35,14 @@ itself has no access to it -- so it cannot pre-fill a field, show what the IFLP 
 says, or even label a row with a client's name. That is why every per-client input reads
 a flat "Client 1" / "Client 2".
 
-**Nothing else in this document can be fixed until the wizard receives the base state.**
+**Resolved.** `FflpWizard` now takes the base state as a required prop, and uses it to
+label its columns with the plan's own names and to drop the second column on a solo plan.
 
 ## Fields the IFLP already has
 
 | FFLP field(s) | IFLP source | Mismatch |
 | --- | --- | --- |
-| `govCpp1/2Monthly`, `govOas1/2Monthly` | `IflpClient.cppAmount` / `.oasAmount` | Units |
+| ~~`govCpp1/2Monthly`, `govOas1/2Monthly`~~ | `IflpClient.cppAmount` / `.oasAmount` | **Done** -- derived |
 | `allocPersonal` | `personalSavingsMonthly()` | none |
 | `allocCorporate` | `monthlySavingsCorpLiquid()` + `monthlySavingsCorpFixed()` | none (sum of two) |
 | `corpMonthly` | `monthlySavingsCorpLiquid()` | none |
@@ -56,27 +58,44 @@ a flat "Client 1" / "Client 2".
 | `ciInPlace`, `diNewCoverage` | `criticalIllnessCoverage` / `disabilityMonthlyBenefit` presence | derivable as booleans |
 | `recommendedSalary` | `incomeAlignmentAmount` + `incomeStructure` | Meaning |
 
-## The one tag collision
+## The tag collision -- resolved
 
-`riTotalIncome` is the only key declared in **both** `IflpDocPayload` and
-`FflpDocPayload`. `buildFflpDocPayload` spreads `...shared` first and then overrides it,
-so the FFLP value wins -- computed from a different set of sources:
+`riTotalIncome` was the only key declared in **both** `IflpDocPayload` and
+`FflpDocPayload`. `buildFflpDocPayload` spread `...shared` and then overrode it, so which
+value reached the document was decided by which line came last in an object literal.
+
+The FFLP's value was the correct one for the FFLP's table, so this was not printing a wrong
+figure -- it was a trap. Deleting the FFLP's line, for any reason, would have silently
+started rendering the IFLP's total under the same tag, and nothing in the types or the
+template would have said so.
+
+`FflpDocPayload` now extends `Pick<IflpDocPayload, SharedTag>` instead of the whole
+payload, and the builder writes out the seven shared tags rather than spreading ninety-odd.
+A key can no longer cross over by accident; adding a name to `SharedTag` is how a value
+becomes shared, and the compiler then requires it.
+
+What the two totals *mean* still differs, and that is the taxonomy question below rather
+than a bug:
 
 - IFLP `retirementIncomeTotal()` = CPP/OAS + TFSA + PPP + Corporate Liquid + Corporate Fixed
 - FFLP `totalIncome` = Government + Pension + Corporate + Insurance
 
-Not merely different inputs: different bases. The IFLP counts TFSA and Corporate Fixed;
-the FFLP counts Insurance and drops both. Two documents reach the same client with the
-same label over two different numbers, and nothing reports the disagreement.
-
 ## Structural mismatches
 
-### Units
+### Units -- resolved
 
 `iflp-derive.ts` is explicit that CPP and OAS are stored **annual** ("Already annual
-figures, so there is no x 12 here"). The FFLP stores the same benefits **monthly** and
-multiplies by twelve. Reconciling these means converting, and until then the two forms can
-hold the same benefit at a 12x difference with nothing to catch it.
+figures, so there is no x 12 here"). The FFLP used to store the same benefits **monthly**
+and multiply by twelve, so the same benefit could sit in the two forms a factor of twelve
+apart with nothing to catch it -- and a planner copying an annual figure from the IFLP into
+a monthly field produced exactly that.
+
+The four fields are gone. `buildFflpDocPayload` reads CPP and OAS off the base plan's
+clients and derives the monthly column with `monthlyFromAnnual`, the inverse of
+`annualFromMonthly` and living beside it so the x12 constant stays in one module. The
+bucket total is `governmentBenefitsTotal(base)` -- the IFLP's own selector -- so the two
+documents cannot report different government income. The wizard shows the figures read-only
+with a "from the IFLP" hint.
 
 ### Bucket taxonomy
 
@@ -100,11 +119,10 @@ The FFLP hardcodes exactly two clients and two children. The IFLP has `namedClie
 an unbounded `children[]`. On a solo plan the FFLP still asks for Client 2's figures and
 will print whatever is entered.
 
-### Formatting
+### Formatting -- resolved
 
-The FFLP's local `period()` renders `"1 years"`; the IFLP's `formatYears` renders
-`"1 Year"`. It reaches the client-facing document through the insurance contribution
-periods and the education horizons.
+The FFLP's local `period()` rendered `"1 years"`. It now renders `"1 year"`, staying
+lower-case (unlike `format.ts`'s `formatYears`) to match the template's surrounding copy.
 
 ## Genuinely FFLP-only
 
@@ -118,24 +136,29 @@ products** (term life, critical illness, disability). The FFLP's insurance block
 **insurance as an investment** -- tax-free income, death benefit, total value, return.
 Same word, different instrument. The only real link is Step 6's protection toggles.
 
-## A lever worth knowing about
+## How a value becomes shared
 
-`buildFflpDocPayload` spreads all 93 keys of the IFLP payload into the FFLP payload, of
-which the FFLP template currently uses 7. **Any FFLP tag renamed to match its IFLP tag
-fills automatically**, with no new wiring -- so a reconciliation is often a template rename
-plus deleting a field, rather than new plumbing.
+Until the collision above was fixed, `buildFflpDocPayload` spread all 93 IFLP keys in and
+the FFLP template used 7 of them. That made renaming an FFLP tag to match an IFLP tag fill
+it automatically -- convenient, and the same mechanism that let `riTotalIncome` shadow
+silently. Convenience and hazard were one line of code.
 
-`riTotalIncome` is the same mechanism seen from the other side: spread-then-override gives
-free inheritance and silent shadowing from one line of code. When removing an FFLP field,
-check whether the tag it leaves behind now resolves to an IFLP value -- that is usually the
-goal, but it should be the intended value and not a coincidence.
+Sharing is now explicit: add the tag name to `SharedTag` in `src/lib/fflp-form.ts` and
+assign it in `shared`. One extra line per shared value, and nothing crosses over that
+nobody chose.
+
+When removing an FFLP field, check what its tag now resolves to. It renders blank unless
+something supplies it -- which is usually what you want while a section is mid-migration,
+but it is worth knowing it fails quietly rather than loudly.
 
 ## Suggested order
 
-1. **Pass `base` into `FflpWizard`.** Nothing else is possible first, and on its own it
-   lets the wizard label fields with real client names.
-2. **Units and the `riTotalIncome` collision.** These are live correctness bugs producing
-   wrong figures today, not merely duplicated effort.
+1. ~~**Pass `base` into `FflpWizard`.**~~ Done. Also drops the second client/child column
+   on a plan that has no second person.
+2. ~~**Units and the `riTotalIncome` collision.**~~ Done. Government is derived from the
+   base plan; sharing is explicit rather than a blanket spread.
 3. **Granularity and shape mismatches.** Duplicated work; wrong only if the two copies
-   disagree.
+   disagree. The clean one-to-one mappings -- `allocPersonal`, `allocCorporate`,
+   `corpMonthly`, `corpAnnual`, `corpEstate`, pension monthly, education target and horizon
+   -- can follow the Government bucket's pattern directly.
 4. **Bucket taxonomy.** A question for RFL before it is a refactor.

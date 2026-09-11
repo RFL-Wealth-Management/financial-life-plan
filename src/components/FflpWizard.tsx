@@ -8,6 +8,7 @@ import {
   TextInput,
   NumberInput,
   CurrencyInput,
+  DerivedCurrency,
   SelectInput,
   SectionHeading,
 } from "@/components/fields";
@@ -23,7 +24,8 @@ import {
   type FflpNextStepRow,
 } from "@/lib/fflp-form";
 import { mockFflpFormState } from "@/lib/fflp-mock";
-import { deriveClients, type IflpFormState } from "@/lib/iflp-form";
+import { clientRecords, deriveClients, type IflpFormState } from "@/lib/iflp-form";
+import { governmentBenefitsTotal } from "@/lib/iflp-derive";
 
 /**
  * Column labels for the FFLP's fixed two-slot tables. The template gives each
@@ -184,7 +186,7 @@ export function FflpWizard({
           ) : step.id === "contributions" ? (
             <ContributionsStep state={state} patch={patch} />
           ) : step.id === "buckets" ? (
-            <BucketsStep state={state} patch={patch} c1={c1Label} c2={c2Label} />
+            <BucketsStep state={state} patch={patch} c1={c1Label} c2={c2Label} base={base} />
           ) : step.id === "insurance" ? (
             <InsuranceStep state={state} patch={patch} c1={c1Label} c2={c2Label} />
           ) : step.id === "networth" ? (
@@ -356,6 +358,7 @@ function BucketsStep({
   patch,
   c1,
   c2,
+  base,
 }: {
   state: FflpFormState;
   patch: (u: Partial<FflpFormState>) => void;
@@ -363,21 +366,26 @@ function BucketsStep({
    *  no second person, and that column is not rendered (see slotLabels). */
   c1: string;
   c2: string | null;
+  /** The IFLP this FFLP extends — the Government bucket reads off it. */
+  base: IflpFormState;
 }) {
+  const govClients = clientRecords(base);
   return (
     <>
       <p className="rounded-lg border border-foreground/10 bg-foreground/[0.02] px-3 py-2 text-xs text-foreground/60">
         Totals, the “at a glance” table, and the income summary are calculated from
-        these figures. Government annual income is derived as monthly × 12.
+        these figures. The Government bucket is read from the IFLP rather than
+        entered here.
       </p>
 
-      <SectionHeading title="Government Bucket" description="CPP & OAS monthly income per client." />
+      <SectionHeading title="Government Bucket" description="CPP & OAS come from the IFLP, where they are entered once per client as annual figures. The document's monthly column is derived from them." />
       <div className="grid grid-cols-2 gap-3">
-        <Money id="fflp-cpp1" label={`CPP — ${c1} (monthly)`} value={state.govCpp1Monthly} onChange={(govCpp1Monthly) => patch({ govCpp1Monthly })} />
-        {c2 && <Money id="fflp-cpp2" label={`CPP — ${c2} (monthly)`} value={state.govCpp2Monthly} onChange={(govCpp2Monthly) => patch({ govCpp2Monthly })} />}
-        <Money id="fflp-oas1" label={`OAS — ${c1} (monthly)`} value={state.govOas1Monthly} onChange={(govOas1Monthly) => patch({ govOas1Monthly })} />
-        {c2 && <Money id="fflp-oas2" label={`OAS — ${c2} (monthly)`} value={state.govOas2Monthly} onChange={(govOas2Monthly) => patch({ govOas2Monthly })} />}
+        <DerivedCurrency id="fflp-cpp1" label={`CPP — ${c1} (annual)`} value={govClients[0]?.cppAmount ?? null} hint="from the IFLP" />
+        {c2 && <DerivedCurrency id="fflp-cpp2" label={`CPP — ${c2} (annual)`} value={govClients[1]?.cppAmount ?? null} hint="from the IFLP" />}
+        <DerivedCurrency id="fflp-oas1" label={`OAS — ${c1} (annual)`} value={govClients[0]?.oasAmount ?? null} hint="from the IFLP" />
+        {c2 && <DerivedCurrency id="fflp-oas2" label={`OAS — ${c2} (annual)`} value={govClients[1]?.oasAmount ?? null} hint="from the IFLP" />}
       </div>
+      <DerivedCurrency id="fflp-gov-total" label="Government total (annual)" value={governmentBenefitsTotal(base)} hint="CPP + OAS, every named client" />
 
       <SectionHeading title="Pension Bucket (PPP)" description="Monthly contribution and projected annual income per client." />
       <div className="grid grid-cols-2 gap-3">

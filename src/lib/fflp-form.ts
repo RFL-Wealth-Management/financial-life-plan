@@ -10,13 +10,15 @@
 // See docs/fflp-tagging.md for the tag map.
 
 import {
-  annualFromMonthly,
   buildIflpDocPayload,
+  clientRecords,
+  monthlyFromAnnual,
   type AdvisorInfo,
   type IflpDocPayload,
   type IflpFormState,
   type IflpStep,
 } from "@/lib/iflp-form";
+import { governmentBenefitsTotal } from "@/lib/iflp-derive";
 import {
   moneyOrBlank as formatCurrency,
   perYearOrBlank as formatPerYear,
@@ -60,11 +62,9 @@ export interface FflpFormState {
   allocCorporate: number | null;
   allocInsurance: number | null;
 
-  // Step 3 — Government Bucket (CPP/OAS monthly per person; annual = ×12, totals derived)
-  govCpp1Monthly: number | null;
-  govCpp2Monthly: number | null;
-  govOas1Monthly: number | null;
-  govOas2Monthly: number | null;
+  // Step 3 — Government Bucket has no fields: CPP and OAS are entered once on
+  // the IFLP's clients, annual, and the FFLP's monthly column is derived from
+  // them. See buildFflpDocPayload.
 
   // Step 3 — Pension Bucket (PPP): monthly + projected annual income per client
   pension1Monthly: number | null;
@@ -145,10 +145,6 @@ export const initialFflpFormState: FflpFormState = {
   allocPersonal: null,
   allocCorporate: null,
   allocInsurance: null,
-  govCpp1Monthly: null,
-  govCpp2Monthly: null,
-  govOas1Monthly: null,
-  govOas2Monthly: null,
   pension1Monthly: null,
   pension1Annual: null,
   pension2Monthly: null,
@@ -214,10 +210,35 @@ export const FFLP_STEPS: IflpStep[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Document payload. Extends the shared IFLP payload with FFLP-only tags.
+// Document payload.
 // ---------------------------------------------------------------------------
 
-export interface FflpDocPayload extends IflpDocPayload {
+/**
+ * The IFLP tags the FFLP template also uses — client names, the welcome
+ * greeting and the advisor block. Taken from the base plan's payload so the two
+ * documents cannot disagree about who the plan is for or who wrote it.
+ *
+ * Listed rather than spread. `{ ...buildIflpDocPayload(base) }` used to carry all
+ * ninety-odd IFLP tags in, and a key declared in both payloads was then decided
+ * purely by which line came last in the object literal. `riTotalIncome` is
+ * exactly that case: it means "CPP/OAS + TFSA + PPP + corporate" in the IFLP and
+ * "government + pension + corporate + insurance" here, and nothing said so. The
+ * FFLP's value is the right one for the FFLP's table — but it should win because
+ * it was chosen, not because of where it sat.
+ *
+ * Adding a name here is how a shared value becomes shared; the compiler then
+ * requires it in `shared` below.
+ */
+type SharedTag =
+  | "coverClients"
+  | "client1Name"
+  | "client2Name"
+  | "welcomeGreeting"
+  | "advisorName"
+  | "advisorPhone"
+  | "advisorEmail";
+
+export interface FflpDocPayload extends Pick<IflpDocPayload, SharedTag> {
   // Cover + final-page date, e.g. "AUGUST 2026".
   coverDate: string;
   // Profile "Retirement Age" — the base IFLP's target independence age (shared).
@@ -349,7 +370,18 @@ export function buildFflpDocPayload(
   fflp: FflpFormState,
   advisor?: AdvisorInfo
 ): FflpDocPayload {
-  const shared = buildIflpDocPayload(base, advisor);
+  // Only the tags SharedTag names cross over; see the note there for why this is
+  // written out and not spread.
+  const iflp = buildIflpDocPayload(base, advisor);
+  const shared: Pick<IflpDocPayload, SharedTag> = {
+    coverClients: iflp.coverClients,
+    client1Name: iflp.client1Name,
+    client2Name: iflp.client2Name,
+    welcomeGreeting: iflp.welcomeGreeting,
+    advisorName: iflp.advisorName,
+    advisorPhone: iflp.advisorPhone,
+    advisorEmail: iflp.advisorEmail,
+  };
 
   const month = base.planMonth.trim();
   const coverDate =
@@ -359,15 +391,20 @@ export function buildFflpDocPayload(
   const c = formatCurrency;
   const s = fflp;
 
-  // Government — annual per line is the monthly benefit × 12; totals are sums.
-  const cpp1A = annualFromMonthly(s.govCpp1Monthly);
-  const cpp2A = annualFromMonthly(s.govCpp2Monthly);
-  const oas1A = annualFromMonthly(s.govOas1Monthly);
-  const oas2A = annualFromMonthly(s.govOas2Monthly);
-  const govTotalMonthly = sumOrNull([
-    s.govCpp1Monthly, s.govCpp2Monthly, s.govOas1Monthly, s.govOas2Monthly,
-  ]);
-  const govTotalAnnual = sumOrNull([cpp1A, cpp2A, oas1A, oas2A]);
+  // Government — read off the base plan rather than re-entered. CPP and OAS live
+  // on the IFLP's clients and are stored ANNUAL (governmentBenefitsTotal: "already
+  // annual figures, so there is no × 12 here"), while this table also prints a
+  // monthly column. Collecting that column separately meant the same benefit was
+  // typed into two forms in two units, a twelvefold disagreement away from each
+  // other with nothing to catch it. The total is the IFLP's own selector, so the
+  // two documents cannot report different government income.
+  const govClients = clientRecords(base);
+  const cpp1A = govClients[0]?.cppAmount ?? null;
+  const cpp2A = govClients[1]?.cppAmount ?? null;
+  const oas1A = govClients[0]?.oasAmount ?? null;
+  const oas2A = govClients[1]?.oasAmount ?? null;
+  const govTotalAnnual = governmentBenefitsTotal(base);
+  const govTotalMonthly = monthlyFromAnnual(govTotalAnnual);
 
   // Pension totals.
   const pensionTotalMonthly = sumOrNull([s.pension1Monthly, s.pension2Monthly]);
@@ -389,7 +426,10 @@ export function buildFflpDocPayload(
   ]);
   const totalEstate = sumOrNull([s.corpEstate, s.insuranceEstate]);
 
-  const period = (y: number | null): string => (y == null ? "" : `${y} years`);
+  // "20 years" / "1 year". Lower-case, unlike format.ts's formatYears, because
+  // that is how the template's surrounding copy reads.
+  const period = (y: number | null): string =>
+    y == null ? "" : `${y} year${y === 1 ? "" : "s"}`;
 
   return {
     ...shared,
@@ -411,13 +451,13 @@ export function buildFflpDocPayload(
     bucketInsuranceMonthly: c(insMonthlyTotal),
     bucketInsuranceAnnual: formatPerYear(insAnnualTotal),
 
-    govCpp1Monthly: c(s.govCpp1Monthly),
+    govCpp1Monthly: c(monthlyFromAnnual(cpp1A)),
     govCpp1Annual: c(cpp1A),
-    govCpp2Monthly: c(s.govCpp2Monthly),
+    govCpp2Monthly: c(monthlyFromAnnual(cpp2A)),
     govCpp2Annual: c(cpp2A),
-    govOas1Monthly: c(s.govOas1Monthly),
+    govOas1Monthly: c(monthlyFromAnnual(oas1A)),
     govOas1Annual: c(oas1A),
-    govOas2Monthly: c(s.govOas2Monthly),
+    govOas2Monthly: c(monthlyFromAnnual(oas2A)),
     govOas2Annual: c(oas2A),
     govTotalMonthly: c(govTotalMonthly),
     govTotalAnnual: c(govTotalAnnual),

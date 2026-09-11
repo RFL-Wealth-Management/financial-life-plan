@@ -846,6 +846,18 @@ export function annualFromMonthly(monthly: number | null): number | null {
   return monthly == null ? null : monthly * MONTHS_PER_YEAR;
 }
 
+/**
+ * Annual -> monthly, for figures stored annual that a table shows monthly.
+ *
+ * CPP and OAS are the case that needs it: they are entered once, annual, on the
+ * client (governmentBenefitsTotal notes they are "already annual figures"),
+ * while the FFLP's Government Bucket table has a monthly column. Deriving that
+ * column is what stops the same benefit being typed into two forms in two units.
+ */
+export function monthlyFromAnnual(annual: number | null): number | null {
+  return annual == null ? null : annual / MONTHS_PER_YEAR;
+}
+
 // One rendered row per account of a kind, in the order the planner added them.
 // The table's "Annual Contribution" column is derived from the stored monthly
 // figure, and the name cell resolves the account's party key to a display name.
