@@ -1079,11 +1079,6 @@ function AccountsStep({
     });
   };
 
-  const addable = (Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((kind) => ({
-    kind,
-    label: ACCOUNT_KINDS[kind].label,
-  }));
-
   const namedChildren = state.children
     .map((child, index) => ({ child, index }))
     .filter(({ child }) => child.firstName.trim());
@@ -1095,30 +1090,39 @@ function AccountsStep({
 
   return (
     <div className="space-y-8">
-      <CollapsibleSection
-        title="Accounts"
-        hint="Add only the accounts this plan includes — each one gets its own page in the document."
-      >
-        {accounts.length === 0 ? (
-          <p className="text-sm text-foreground/50">
-            No accounts yet. Add the ones this plan covers.
-          </p>
-        ) : (
-          accounts.map((a, index) => {
-            const def = ACCOUNT_KINDS[a.kind];
-            const parties = partyOptions(state, def.holder === "client").filter((o) =>
-              def.holder === "corporation"
-                ? o.value === "corporation"
-                : o.value !== "corporation"
-            );
-            return (
+      {(Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((kind) => {
+        const def = ACCOUNT_KINDS[kind];
+        const rows = accounts
+          .map((a, index) => ({ a, index }))
+          .filter(({ a }) => a.kind === kind);
+        const parties = partyOptions(state, def.holder === "client").filter((o) =>
+          def.holder === "corporation"
+            ? o.value === "corporation"
+            : o.value !== "corporation"
+        );
+        return (
+          <CollapsibleSection
+            key={kind}
+            title={def.label}
+            defaultOpen={rows.length > 0}
+            hint={
+              rows.length === 0
+                ? "Not in this plan. Add one to include its page in the document."
+                : undefined
+            }
+          >
+            {rows.map(({ a, index }) => (
               <div
                 key={index}
-                className="space-y-3 rounded-lg border border-foreground/10 p-3"
+                className="space-y-3 rounded-lg border border-foreground/10 bg-background/40 p-3"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold text-foreground">
-                    {def.label}
+                  <span className="text-xs font-medium text-foreground/70">
+                    {a.party
+                      ? partyName(state, a.party as PartyKey)
+                      : def.holder === "corporation"
+                        ? "Select an entity"
+                        : "Select a client"}
                   </span>
                   <button
                     type="button"
@@ -1179,24 +1183,18 @@ function AccountsStep({
                   )}
                 </div>
               </div>
-            );
-          })
-        )}
-
-        <div className="flex flex-wrap gap-2 pt-1">
-          {addable.map(({ kind, label }) => (
+            ))}
             <button
-              key={kind}
               type="button"
               onClick={() => addAccount(kind)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
             >
-              <Plus size={15} aria-hidden />
-              {label}
+              <Plus size={16} aria-hidden />
+              Add {def.label}
             </button>
-          ))}
-        </div>
-      </CollapsibleSection>
+          </CollapsibleSection>
+        );
+      })}
 
       {personalRows.length > 0 && (
         <CollapsibleSection
