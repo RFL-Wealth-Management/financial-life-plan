@@ -63,7 +63,7 @@ wizard step feeds the payload.
 
 | Placeholder in template | Replace with | Payload key |
 | --- | --- | --- |
-| `{coverClients}` (cover) | *already tagged* | coverClients (shared) |
+| ~~`{coverClients}` (cover)~~ | **removed** | The cover printed the combined names and then the per-client name table directly below, showing both clients twice. The combined line is gone; the payload still supplies `coverClients` (it is a `SharedTag`), so re-adding the tag would work. |
 | `{client1Name}` / `{client2Name}` | *already tagged* | client1Name / client2Name (shared) |
 | `Client 1` / `Client 2` (cover name table) | `{client1Name}` / `{client2Name}` | client1Name / client2Name (shared) |
 | `{welcomeGreeting}` (CEO welcome) | *already tagged* | welcomeGreeting (shared) |
