@@ -10,7 +10,7 @@ FFLP-only tags on top.
 
 | File | Role |
 | --- | --- |
-| `original files/FFLP Template 2026.docx` | **Source.** Hand-authored, reviewer comments mark editable regions. No tags. |
+| `template/FFLP Template 2026.docx` | **Source.** Hand-authored, reviewer comments mark editable regions. No tags. |
 | `templates/fflp.tagged.docx` | **Render target.** The copy docx-service renders; tags are inserted here. |
 
 ## Tagging method — unpacked XML (no Word)
@@ -43,7 +43,7 @@ means removing every related piece, or Word reports a repair:
   `commentsExtensible.xml`, and `word/people.xml`;
 - their entries in `word/_rels/document.xml.rels` and `[Content_Types].xml`.
 
-Keep the render target comment-free; leave the comments in the `original files/` source for
+Keep the render target comment-free; leave the comments in the `template/` source for
 reviewers.
 
 ## Tag vocabulary

@@ -3,7 +3,7 @@
 The **FFLP** (fully-implemented Financial Life Plan) is the document a client graduates to
 after the **IFLP** (Initial Financial Life Plan). It **reuses the IFLP plan as its base**
 (same clients, corporation, buckets, advisor block) and adds deeper, implementation-stage
-detail on top. Source template: `original files/FFLP Template 2026.docx`; render target:
+detail on top. Source template: `template/FFLP Template 2026.docx`; render target:
 `templates/fflp.tagged.docx`.
 
 There is no highlight-based extraction for FFLP (the source has reviewer *comments*, not
@@ -17,42 +17,76 @@ reconstructed from the template body and grouped into the FFLP wizard's steps.
 
 ## Steps
 
-Built incrementally, the same way the IFLP wizard grew step by step.
+All six steps render real fields and feed `buildFflpDocPayload`. Each one is listed
+below with the state it owns; `src/lib/fflp-form.ts` is the authority, and
+`docs/fflp-tagging.md` maps each field to its tag.
 
-### Step 1 — Profile & Income Strategy  ✅ *built*
+Most totals are **derived** in the payload builder rather than stored, so a figure is
+entered once and shown everywhere it appears. Only leaf values live in `FflpFormState`.
+
+### Step 1 - Profile & Income Strategy
 
 | Field | Kind | Source / notes |
 | --- | --- | --- |
 | Cover client names, cover date | Shared | `{coverClients}`, `{client1Name}`, `{client2Name}`, `{coverDate}` |
-| CEO welcome | Static | "A Welcome From Our CEO" / "Saad Nadeem, CEO" — static template copy, not a field |
-| Retirement Age | Shared | Profile row "Retirement Age: 60". Sourced from the plan's `targetIndependenceAge` — not re-entered in the FFLP form |
-| **Recommended Salary** | **New** | Income Strategy → Recommended Structure: "Salary: $250,000 per person (minimum)". `plan_fflp.recommended_salary` |
-| Salary-vs-dividend narrative | Static | "How Your Income Supports…" prose — static for now |
+| CEO welcome | Static | "A Welcome From Our CEO" / "Saad Nadeem, CEO" - static template copy, not a field |
+| Retirement Age | Shared | Profile row. Sourced from the plan's `targetIndependenceAge` - not re-entered |
+| **Recommended Salary** | **New** | Income Strategy -> Recommended Structure. `recommendedSalary` |
+| Income strategy note | New | `incomeStrategyNote` |
 | Advisor block | Shared | Final page: `{advisorName}`, `{advisorPhone}`, `{advisorEmail}` (the generating user) |
 
-### Step 2 — Contributions & Allocation  *(later)*
+### Step 2 - Contributions & Allocation
 
-New: Total Monthly Investment; allocation split Personal / Corporate / Insurance.
+New: `allocPersonal`, `allocCorporate`, `allocInsurance`. The total is derived as their
+sum, so it is never stored.
 
-### Step 3 — Buckets Detail  *(later)*
+### Step 3 - Buckets & Income
 
-New: per-client Government (monthly per-person + combined annual); PPP annual income +
-current-status note; Corporate Liquid annual income.
+New: Government per-person CPP/OAS monthly (`govCpp1Monthly` ... `govOas2Monthly`; annual
+is monthly x 12, totals summed); Pension/PPP monthly + annual per client; Corporate Liquid
+monthly + annual; per-bucket estate values for the income summary (`corpEstate`,
+`insuranceEstate` - government and pension estate are $0 by definition).
 
-### Step 4 — Insurance & Access to Capital  *(later)*
+### Step 4 - Insurance & Access to Capital
 
-New: per-client Insurance Bucket outcomes (income duration, total tax-free income, death
-benefit, total value, return %); per-client Access-to-Capital columns (years 2/4/6/8/10).
+New: per-client contributions and outcomes (`insC1Monthly`, `insC1PeriodYears`,
+`insC1TaxFreeAnnual`, and the same for client 2); detailed outcome figures
+(`insC1Duration`, `insC1TotalTaxFree`, `insC1DeathBenefit`, `insC1TotalValue`,
+`insC1Return`); `insTotalReturn` and `insSummaryLine`. Access to Capital per client at
+years 2/4/6/8/10 (`ac2C1` ... `ac10C2`).
 
-### Step 5 — Net Worth & Education  *(later)*
+Monetary insurance totals are summed in the payload. `insTotalReturn` is **not** - it is a
+blended ratio rather than a sum, so it stays hand-entered.
 
-New: Expected Net Worth projection; Education Insurance-Wrapper milestone tables (per-child
-values at ages 30/40/50/65/90 and end-of-year 1–5 overview).
+### Step 5 - Net Worth & Education
 
-### Step 6 — Implementation & Protection  *(later)*
+New, per child (up to two, names read from the IFLP's children): funding target and
+horizon; insurance-wrapper annual contribution and duration; end-of-year 1-5 values; and
+age 30/40/50/65/90 milestones.
 
-New: Implementation/Funding actions; Protection Planning status toggles (CI/DI "in place"
-vs "not in place" variants); Next Steps table.
+### Step 6 - Implementation & Protection
+
+New: three dynamic add/remove tables - `implTransfers`, `implMonthly`, `implNextSteps` -
+which render as docxtemplater loops. Protection Planning is two booleans, `ciInPlace` and
+`diNewCoverage`, each selecting one of a mutually exclusive pair of template blocks.
+
+## Fields the IFLP now owns
+
+The FFLP form was designed against a much thinner IFLP. Main has since grown dynamic
+accounts, `iflp-derive.ts`, plan-level option switches and derived monthly contributions,
+and several figures the FFLP collects are now computed from the base plan:
+
+| FFLP collects | The IFLP already has |
+| --- | --- |
+| Access to Capital, years 2-10 | `IflpFormState.accessToCapital` |
+| `implTransfers` / `implMonthly` | `transfersPersonal/Corporate`, `monthlyPersonal/Corporate` |
+| `corpMonthly` / `corpAnnual` | `iflp-derive.corporateLiquidIncome()` |
+| `allocPersonal/Corporate/Insurance` | `iflp-derive.monthlySavings*()` |
+| `govCpp*` / `govOas*` | `iflp-derive.governmentBenefitsTotal()` |
+
+Until these are reconciled, the same number can be entered twice and disagree between the
+two documents - the exact problem the IFLP's own derived-figure consolidation removed.
+Treat the IFLP as the source of truth when resolving a disagreement.
 
 ## Relationship to the database
 

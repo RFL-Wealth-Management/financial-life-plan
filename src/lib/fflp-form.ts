@@ -199,9 +199,9 @@ export const emptyMonthlyRow: FflpMonthlyRow = { source: "", amount: null, alloc
 export const emptyNextStepRow: FflpNextStepRow = { action: "", status: "", owner: "" };
 
 // ---------------------------------------------------------------------------
-// Wizard steps. Steps 1–3 render real fields; 4–6 are placeholders that fill in
-// as those sections are wired (Insurance outcomes, Access to Capital, Education,
-// Implementation, Protection) — the same way the IFLP wizard grew.
+// Wizard steps. All six render real fields and feed buildFflpDocPayload below.
+// Reordering this array is all it takes: the wizard renders by step id, not by
+// position (same contract as IFLP_STEPS).
 // ---------------------------------------------------------------------------
 
 export const FFLP_STEPS: IflpStep[] = [

@@ -27,8 +27,8 @@ import { mockFflpFormState } from "@/lib/fflp-mock";
 /**
  * The FFLP wizard. Unlike the IFLP wizard it always edits an existing plan (the
  * FFLP extends a saved IFLP), so `planId` is required and the final action is an
- * upsert. Only step 1 (Profile & Income) renders real fields today; the rest are
- * placeholders so the shell works end-to-end — the same way the IFLP wizard grew.
+ * upsert. All six steps render real fields; see docs/fflp-fields.md for the
+ * inventory and docs/fflp-tagging.md for how each one reaches the document.
  */
 export function FflpWizard({
   planId,
