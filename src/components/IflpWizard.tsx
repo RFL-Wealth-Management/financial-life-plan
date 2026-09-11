@@ -33,6 +33,7 @@ import {
 } from "@/lib/field-options";
 import {
   IFLP_STEPS,
+  sourceHint,
   initialIflpFormState,
   emptyChild,
   emptyOtherPriority,
@@ -649,13 +650,13 @@ function GoalsStep({
             id="success-retirement-income"
             label="Retirement Income"
             value={retirementIncomeTotal(state)}
-            hint="Step 3 · Projected Annual Retirement Income total"
+            hint={sourceHint("retirement", "Projected Annual Retirement Income total")}
           />
           <DerivedCurrency
             id="success-tax-free-income"
             label="Tax-Free Income"
             value={ca.fixedAnnualTaxFreeIncome}
-            hint="Step 4 · Corporate Fixed Bucket"
+            hint={sourceHint("accounts", "Corporate Fixed Bucket")}
           />
           <DerivedCurrency
             id="success-access-to-capital"
@@ -667,7 +668,7 @@ function GoalsStep({
             id="success-estate-value"
             label="Estate Value"
             value={ca.fixedEstateValue}
-            hint="Step 4 · Corporate Fixed Bucket"
+            hint={sourceHint("accounts", "Corporate Fixed Bucket")}
           />
         </div>
       </fieldset>
@@ -755,7 +756,7 @@ function RetirementStep({
       // Entered in Accounts & Education instead (comment 8); shown here read-only
       // so the summary still reads as a complete table.
       income: corporateLiquidIncome,
-      incomeHint: "Step 4 · Corporate Liquid Bucket",
+      incomeHint: sourceHint("accounts", "Corporate Liquid Bucket"),
     },
     { key: "corporateFixed", label: "Corporate Fixed Bucket (Tax-Free)" },
   ];
@@ -786,14 +787,14 @@ function RetirementStep({
       label: "Corporate Liquid Bucket",
       monthly: "corpLiquidMonthly",
       delivers: corporateLiquidIncome,
-      deliversHint: "Step 4 · Corporate Liquid annual income in retirement",
+      deliversHint: sourceHint("accounts", "Corporate Liquid annual income in retirement"),
     },
     {
       key: "corpFixed",
       label: "Corporate Fixed Bucket",
       monthly: "corpFixedMonthly",
       delivers: corporateFixedDelivers,
-      deliversHint: "Step 4 · Corporate Fixed annual tax-free income",
+      deliversHint: sourceHint("accounts", "Corporate Fixed annual tax-free income"),
     },
   ];
 
@@ -931,13 +932,13 @@ function RetirementStep({
           id="ms-corp-liquid"
           label="Corporate Liquid Bucket"
           value={monthlySavingsCorpLiquid(state)}
-          hint="Step 4 · Corporate Liquid monthly contribution"
+          hint={sourceHint("accounts", "Corporate Liquid monthly contribution")}
         />
         <DerivedCurrency
           id="ms-corp-fixed"
           label="Corporate Fixed Bucket"
           value={monthlySavingsCorpFixed(state)}
-          hint="Step 4 · Corporate Fixed monthly contribution, both clients"
+          hint={sourceHint("accounts", "Corporate Fixed monthly contribution, both clients")}
         />
         <p className="text-xs text-foreground/60">
           Total monthly savings:{" "}

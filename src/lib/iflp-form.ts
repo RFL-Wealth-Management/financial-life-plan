@@ -373,14 +373,35 @@ export interface IflpStep {
   blurb: string;
 }
 
+// Ordered so every figure is entered before the step that summarises it.
+// Accounts & Education is the deepest source — it feeds the Retirement Buckets
+// "delivers" column, both corporate rows of the Monthly Savings Allocation, the
+// Corporate Liquid retirement income, and two of the four "What success looks
+// like" figures — so it comes first of the three. Retirement & Savings then feeds
+// Goals & Success. Reordering this array is all it takes: the wizard renders by
+// step id, not by position.
 export const IFLP_STEPS: IflpStep[] = [
   { id: "people", title: "People & Profile", blurb: "Clients, corporation, and profile basics." },
-  { id: "goals", title: "Goals & Success", blurb: "Priorities, target age, and what success looks like." },
-  { id: "retirement", title: "Retirement & Savings", blurb: "Buckets, income alignment, monthly savings, benefits." },
   { id: "accounts", title: "Accounts & Education", blurb: "Registered/corporate accounts and education funding." },
+  { id: "retirement", title: "Retirement & Savings", blurb: "Buckets, income alignment, monthly savings, benefits." },
+  { id: "goals", title: "Goals & Success", blurb: "Priorities, target age, and what success looks like." },
   { id: "insurance", title: "Insurance", blurb: "Term life, critical illness, and disability." },
   { id: "implementation", title: "Implementation", blurb: "Transfers, lump-sum, and monthly contributions." },
 ];
+
+// "Step 2" for a step id. Derived rather than written into each field's hint,
+// because those hints point across steps and a reorder would otherwise leave
+// every one of them quietly wrong.
+export function stepLabel(id: string): string {
+  const i = IFLP_STEPS.findIndex((s) => s.id === id);
+  return i < 0 ? "" : `Step ${i + 1}`;
+}
+
+/** A provenance hint for a derived field: "Step 2 · Corporate Fixed Bucket". */
+export function sourceHint(stepId: string, where: string): string {
+  const label = stepLabel(stepId);
+  return label ? `${label} · ${where}` : where;
+}
 
 // ---------------------------------------------------------------------------
 // Parties — the reuse primitive shared across steps
