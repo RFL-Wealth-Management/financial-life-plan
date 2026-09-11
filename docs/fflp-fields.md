@@ -74,15 +74,12 @@ which render as docxtemplater loops. Protection Planning is two booleans, `ciInP
 
 The FFLP form was designed against a much thinner IFLP. Main has since grown dynamic
 accounts, `iflp-derive.ts`, plan-level option switches and derived monthly contributions,
-and several figures the FFLP collects are now computed from the base plan:
+and roughly 31 of the 78 figures the FFLP collects now exist in the base plan already --
+some as entered fields, some as `iflp-derive` selectors.
 
-| FFLP collects | The IFLP already has |
-| --- | --- |
-| Access to Capital, years 2-10 | `IflpFormState.accessToCapital` |
-| `implTransfers` / `implMonthly` | `transfersPersonal/Corporate`, `monthlyPersonal/Corporate` |
-| `corpMonthly` / `corpAnnual` | `iflp-derive.corporateLiquidIncome()` |
-| `allocPersonal/Corporate/Insurance` | `iflp-derive.monthlySavings*()` |
-| `govCpp*` / `govOas*` | `iflp-derive.governmentBenefitsTotal()` |
+**See `docs/fflp-iflp-overlap.md`** for the field-by-field map, the unit and granularity
+mismatches, and the `riTotalIncome` tag collision. That file is the one to keep current;
+this section is a pointer, not a second copy.
 
 Until these are reconciled, the same number can be entered twice and disagree between the
 two documents - the exact problem the IFLP's own derived-figure consolidation removed.
