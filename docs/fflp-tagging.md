@@ -84,7 +84,7 @@ so only leaf figures are stored in `FflpFormState`.
 | --- | --- |
 | Monthly Contributions & Allocation | `{contribTotal}` (derived), `{allocPersonal}`, `{allocCorporate}`, `{allocInsurance}` |
 | Retirement Buckets — At a Glance | `{bucketsTotalIncome}`, `{bucketGovAnnual}`, `{bucketPensionMonthly}`, `{bucketPensionAnnual}`, `{bucketCorpMonthly}`, `{bucketCorpAnnual}`, `{bucketInsuranceMonthly}`, `{bucketInsuranceAnnual}` (all derived) |
-| Government Bucket | per client `{govCpp1Monthly}`/`{govCpp1Annual}` … `{govOas2Annual}` + `{govTotalMonthly}`/`{govTotalAnnual}` (annual = monthly × 12; totals summed) |
+| Government Bucket | per client `{govCpp1Monthly}`/`{govCpp1Annual}` … `{govOas2Annual}` + `{govTotalMonthly}`/`{govTotalAnnual}`. **No FFLP fields feed these** — CPP/OAS are read off the base plan's clients, where they are stored annual, and the monthly column is derived (`monthlyFromAnnual`). The total is `governmentBenefitsTotal(base)`. See `docs/fflp-iflp-overlap.md`. |
 | Pension Bucket (PPP) | `{pension1Monthly}`/`{pension1Annual}` … + `{pensionTotalMonthly}`/`{pensionTotalAnnual}` |
 | Corporate Bucket | `{corpMonthly}`, `{corpAnnual}` |
 | Retirement Income Summary | `{riEstimatedAnnual}`, `{riGovIncome}`/`{riGovEstate}` … `{riTotalIncome}`/`{riTotalEstate}` (income derived from buckets; gov/pension estate = $0) |
