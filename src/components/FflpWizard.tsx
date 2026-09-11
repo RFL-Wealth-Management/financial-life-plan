@@ -28,12 +28,22 @@ import { deriveClients, type IflpFormState } from "@/lib/iflp-form";
 /**
  * Column labels for the FFLP's fixed two-slot tables. The template gives each
  * per-client and per-child table exactly two columns, so slot 1 and slot 2
- * resolve to whoever the base IFLP actually names, falling back to the generic
- * label when the plan has fewer. A planner filling these in should be reading
- * the plan's own names rather than matching "Client 2" to a person by memory.
+ * resolve to whoever the base IFLP actually names. A planner filling these in
+ * should be reading the plan's own names rather than matching "Client 2" to a
+ * person by memory.
+ *
+ * Slot 2 is `null` when the plan has no second person, and the steps render
+ * nothing for it — the same rule deriveParties applies ("a solo plan yields a
+ * single client and no phantom Client 2 row anywhere downstream"). Absence is
+ * carried by the label itself so a caller cannot label a slot it isn't showing,
+ * or show one it can't name.
+ *
+ * Values already stored against a hidden slot are deliberately left alone in
+ * plan_fflp.data: adding the client back should restore the planner's figures
+ * rather than having quietly discarded them.
  */
-function slotLabels(names: string[], generic: string): [string, string] {
-  return [names[0] || `${generic} 1`, names[1] || `${generic} 2`];
+function slotLabels(names: string[], generic: string): [string, string | null] {
+  return [names[0] || `${generic} 1`, names[1] || null];
 }
 
 /**
@@ -349,9 +359,10 @@ function BucketsStep({
 }: {
   state: FflpFormState;
   patch: (u: Partial<FflpFormState>) => void;
-  /** Display labels for the two fixed columns (see slotLabels). */
+  /** Display labels for the two fixed columns; `c2` is null when the plan has
+   *  no second person, and that column is not rendered (see slotLabels). */
   c1: string;
-  c2: string;
+  c2: string | null;
 }) {
   return (
     <>
@@ -363,17 +374,21 @@ function BucketsStep({
       <SectionHeading title="Government Bucket" description="CPP & OAS monthly income per client." />
       <div className="grid grid-cols-2 gap-3">
         <Money id="fflp-cpp1" label={`CPP — ${c1} (monthly)`} value={state.govCpp1Monthly} onChange={(govCpp1Monthly) => patch({ govCpp1Monthly })} />
-        <Money id="fflp-cpp2" label={`CPP — ${c2} (monthly)`} value={state.govCpp2Monthly} onChange={(govCpp2Monthly) => patch({ govCpp2Monthly })} />
+        {c2 && <Money id="fflp-cpp2" label={`CPP — ${c2} (monthly)`} value={state.govCpp2Monthly} onChange={(govCpp2Monthly) => patch({ govCpp2Monthly })} />}
         <Money id="fflp-oas1" label={`OAS — ${c1} (monthly)`} value={state.govOas1Monthly} onChange={(govOas1Monthly) => patch({ govOas1Monthly })} />
-        <Money id="fflp-oas2" label={`OAS — ${c2} (monthly)`} value={state.govOas2Monthly} onChange={(govOas2Monthly) => patch({ govOas2Monthly })} />
+        {c2 && <Money id="fflp-oas2" label={`OAS — ${c2} (monthly)`} value={state.govOas2Monthly} onChange={(govOas2Monthly) => patch({ govOas2Monthly })} />}
       </div>
 
       <SectionHeading title="Pension Bucket (PPP)" description="Monthly contribution and projected annual income per client." />
       <div className="grid grid-cols-2 gap-3">
         <Money id="fflp-ppp1-m" label={`${c1} — monthly`} value={state.pension1Monthly} onChange={(pension1Monthly) => patch({ pension1Monthly })} />
         <Money id="fflp-ppp1-a" label={`${c1} — annual income`} value={state.pension1Annual} onChange={(pension1Annual) => patch({ pension1Annual })} />
-        <Money id="fflp-ppp2-m" label={`${c2} — monthly`} value={state.pension2Monthly} onChange={(pension2Monthly) => patch({ pension2Monthly })} />
-        <Money id="fflp-ppp2-a" label={`${c2} — annual income`} value={state.pension2Annual} onChange={(pension2Annual) => patch({ pension2Annual })} />
+        {c2 && (
+          <>
+            <Money id="fflp-ppp2-m" label={`${c2} — monthly`} value={state.pension2Monthly} onChange={(pension2Monthly) => patch({ pension2Monthly })} />
+            <Money id="fflp-ppp2-a" label={`${c2} — annual income`} value={state.pension2Annual} onChange={(pension2Annual) => patch({ pension2Annual })} />
+          </>
+        )}
       </div>
 
       <SectionHeading title="Corporate Bucket (Liquid)" description="Monthly contribution and estimated annual income at retirement." />
@@ -399,9 +414,10 @@ function InsuranceStep({
 }: {
   state: FflpFormState;
   patch: (u: Partial<FflpFormState>) => void;
-  /** Display labels for the two fixed columns (see slotLabels). */
+  /** Display labels for the two fixed columns; `c2` is null when the plan has
+   *  no second person, and that column is not rendered (see slotLabels). */
   c1: string;
-  c2: string;
+  c2: string | null;
 }) {
   return (
     <>
@@ -416,9 +432,13 @@ function InsuranceStep({
         <Money id="fflp-insc1-m" label={`${c1} — monthly`} value={state.insC1Monthly} onChange={(insC1Monthly) => patch({ insC1Monthly })} />
         <NumberInput id="fflp-insc1-p" label={`${c1} — period (yrs)`} value={state.insC1PeriodYears} onChange={(insC1PeriodYears) => patch({ insC1PeriodYears })} />
         <Money id="fflp-insc1-a" label={`${c1} — tax-free/yr`} value={state.insC1TaxFreeAnnual} onChange={(insC1TaxFreeAnnual) => patch({ insC1TaxFreeAnnual })} />
-        <Money id="fflp-insc2-m" label={`${c2} — monthly`} value={state.insC2Monthly} onChange={(insC2Monthly) => patch({ insC2Monthly })} />
-        <NumberInput id="fflp-insc2-p" label={`${c2} — period (yrs)`} value={state.insC2PeriodYears} onChange={(insC2PeriodYears) => patch({ insC2PeriodYears })} />
-        <Money id="fflp-insc2-a" label={`${c2} — tax-free/yr`} value={state.insC2TaxFreeAnnual} onChange={(insC2TaxFreeAnnual) => patch({ insC2TaxFreeAnnual })} />
+        {c2 && (
+          <>
+            <Money id="fflp-insc2-m" label={`${c2} — monthly`} value={state.insC2Monthly} onChange={(insC2Monthly) => patch({ insC2Monthly })} />
+            <NumberInput id="fflp-insc2-p" label={`${c2} — period (yrs)`} value={state.insC2PeriodYears} onChange={(insC2PeriodYears) => patch({ insC2PeriodYears })} />
+            <Money id="fflp-insc2-a" label={`${c2} — tax-free/yr`} value={state.insC2TaxFreeAnnual} onChange={(insC2TaxFreeAnnual) => patch({ insC2TaxFreeAnnual })} />
+          </>
+        )}
       </div>
 
       <SectionHeading title="Insurance — Detailed Outcome" description="Monetary figures are entered in dollars and shown abbreviated (e.g. $8.431M) in the document. Income duration and return are free text (e.g. “Age 61–90 (30 yrs)”, “200%+”)." />
@@ -430,19 +450,24 @@ function InsuranceStep({
         <Money id="fflp-insc1-tv" label="Total value" value={state.insC1TotalValue} onChange={(insC1TotalValue) => patch({ insC1TotalValue })} />
         <TextInput id="fflp-insc1-ret" label="Return" value={state.insC1Return} onChange={(insC1Return) => patch({ insC1Return })} />
       </div>
-      <p className="text-xs font-semibold text-foreground/70">{c2}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <TextInput id="fflp-insc2-dur" label="Income duration" value={state.insC2Duration} onChange={(insC2Duration) => patch({ insC2Duration })} />
-        <Money id="fflp-insc2-tf" label="Total tax-free income" value={state.insC2TotalTaxFree} onChange={(insC2TotalTaxFree) => patch({ insC2TotalTaxFree })} />
-        <Money id="fflp-insc2-db" label="Death benefit" value={state.insC2DeathBenefit} onChange={(insC2DeathBenefit) => patch({ insC2DeathBenefit })} />
-        <Money id="fflp-insc2-tv" label="Total value" value={state.insC2TotalValue} onChange={(insC2TotalValue) => patch({ insC2TotalValue })} />
-        <TextInput id="fflp-insc2-ret" label="Return" value={state.insC2Return} onChange={(insC2Return) => patch({ insC2Return })} />
-      </div>
+      {c2 && (
+        <>
+          <p className="text-xs font-semibold text-foreground/70">{c2}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <TextInput id="fflp-insc2-dur" label="Income duration" value={state.insC2Duration} onChange={(insC2Duration) => patch({ insC2Duration })} />
+            <Money id="fflp-insc2-tf" label="Total tax-free income" value={state.insC2TotalTaxFree} onChange={(insC2TotalTaxFree) => patch({ insC2TotalTaxFree })} />
+            <Money id="fflp-insc2-db" label="Death benefit" value={state.insC2DeathBenefit} onChange={(insC2DeathBenefit) => patch({ insC2DeathBenefit })} />
+            <Money id="fflp-insc2-tv" label="Total value" value={state.insC2TotalValue} onChange={(insC2TotalValue) => patch({ insC2TotalValue })} />
+            <TextInput id="fflp-insc2-ret" label="Return" value={state.insC2Return} onChange={(insC2Return) => patch({ insC2Return })} />
+          </div>
+        </>
+      )}
       <p className="text-xs font-semibold text-foreground/70">Totals</p>
       <p className="rounded-lg border border-foreground/10 bg-foreground/[0.02] px-3 py-2 text-xs text-foreground/60">
         Total tax-free income, total death benefit, and total value are calculated
-        from the two clients above. Only <strong>Total return</strong> is entered
-        by hand, since a blended return isn’t a sum.
+        from the {c2 ? "two clients" : "figures"} above. Only{" "}
+        <strong>Total return</strong> is entered by hand, since a blended return
+        isn’t a sum.
       </p>
       <TextInput id="fflp-inst-ret" label="Total return" value={state.insTotalReturn} onChange={(insTotalReturn) => patch({ insTotalReturn })} />
       <TextInput id="fflp-ins-summary" label="Summary line" value={state.insSummaryLine} onChange={(insSummaryLine) => patch({ insSummaryLine })} />
@@ -457,7 +482,7 @@ function InsuranceStep({
       ] as const).map(([yr, k1, k2]) => (
         <div key={yr} className="grid grid-cols-2 gap-3">
           <Money id={`fflp-ac${yr}-1`} label={`Year ${yr} — ${c1}`} value={state[k1]} onChange={(v) => patch({ [k1]: v } as Partial<FflpFormState>)} />
-          <Money id={`fflp-ac${yr}-2`} label={`Year ${yr} — ${c2}`} value={state[k2]} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />
+          {c2 && <Money id={`fflp-ac${yr}-2`} label={`Year ${yr} — ${c2}`} value={state[k2]} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />}
         </div>
       ))}
     </>
@@ -472,29 +497,33 @@ function EducationStep({
 }: {
   state: FflpFormState;
   patch: (u: Partial<FflpFormState>) => void;
-  /** Display labels for the two fixed columns (see slotLabels). */
+  /** Display labels for the two fixed columns; `c2` is null when the plan has
+   *  no second person, and that column is not rendered (see slotLabels). */
   c1: string;
-  c2: string;
+  c2: string | null;
 }) {
-  // Two child columns keyed 1/2; names come from the IFLP's children. Each row is
-  // a labelled pair of inputs so the many education figures stay compact.
+  // Child columns keyed 1/2; names come from the IFLP's children. Each row is a
+  // labelled pair of inputs so the many education figures stay compact. The grid
+  // narrows with the second column so a one-child plan doesn't leave a gap where
+  // child 2 used to be.
+  const cols = c2 ? "grid-cols-[1fr_1fr_1fr]" : "grid-cols-[1fr_1fr]";
   const row = (
     label: string,
     k1: keyof FflpFormState,
     k2: keyof FflpFormState,
     kind: "money" | "years" = "money"
   ) => (
-    <div className="grid grid-cols-[1fr_1fr_1fr] items-end gap-3">
+    <div className={`grid ${cols} items-end gap-3`}>
       <span className="pb-2 text-xs text-foreground/60">{label}</span>
       {kind === "money" ? (
         <>
           <Money id={`fflp-${String(k1)}`} label={c1} value={state[k1] as number | null} onChange={(v) => patch({ [k1]: v } as Partial<FflpFormState>)} />
-          <Money id={`fflp-${String(k2)}`} label={c2} value={state[k2] as number | null} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />
+          {c2 && <Money id={`fflp-${String(k2)}`} label={c2} value={state[k2] as number | null} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />}
         </>
       ) : (
         <>
           <NumberInput id={`fflp-${String(k1)}`} label={`${c1} (yrs)`} value={state[k1] as number | null} onChange={(v) => patch({ [k1]: v } as Partial<FflpFormState>)} />
-          <NumberInput id={`fflp-${String(k2)}`} label={`${c2} (yrs)`} value={state[k2] as number | null} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />
+          {c2 && <NumberInput id={`fflp-${String(k2)}`} label={`${c2} (yrs)`} value={state[k2] as number | null} onChange={(v) => patch({ [k2]: v } as Partial<FflpFormState>)} />}
         </>
       )}
     </div>
