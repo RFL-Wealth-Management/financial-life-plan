@@ -7,9 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * The FFLP form for a plan. The FFLP extends a saved IFLP, so this always loads
- * an existing plan: the base IFLP state (to 404 a plan the viewer can't see, and
- * to name the download) plus any FFLP extras already saved (blank the first
- * time). Saving upserts the FFLP via /api/generate/fflp?planId=<id>.
+ * an existing plan: the base IFLP state plus any FFLP extras already saved
+ * (blank the first time). Saving upserts the FFLP via
+ * /api/generate/fflp?planId=<id>.
+ *
+ * The whole base state goes to the wizard, not just a field or two off it. The
+ * FFLP re-asks for roughly 31 figures the plan already holds (see
+ * docs/fflp-iflp-overlap.md), and every one of those can only be pre-filled or
+ * cross-checked by a form that can see the plan it extends.
  */
 export default async function FflpReportPage({
   params,
@@ -27,11 +32,5 @@ export default async function FflpReportPage({
 
   const fflp = await loadFflpState(supabase, id);
 
-  return (
-    <FflpWizard
-      planId={id}
-      initialState={fflp}
-      clientLastName={base.client1.lastName}
-    />
-  );
+  return <FflpWizard planId={id} initialState={fflp} base={base} />;
 }
