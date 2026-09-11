@@ -328,7 +328,7 @@ their data rows. The field lists in §14/§16 above assume that intent.
 ## Why FFLP is missing
 
 The method that produced this document does not work on FFLP.
-`template/FFLP Template 2026.docx` contains **zero highlighted runs**. Its
+`original files/FFLP Template 2026.docx` contains **zero highlighted runs**. Its
 editable regions are instead marked with **65 Word comments** from two reviewers,
 which mix field notes (*"prompt to enter the month and year"*, *"editable field.
 the numerical value will have to be edited"*) with design discussion (*"Fonts:
