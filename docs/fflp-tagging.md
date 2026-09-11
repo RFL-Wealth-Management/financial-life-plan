@@ -30,6 +30,13 @@ environment without Word:
 Same end result as hand-tagging in Word — just scriptable. This method also works for
 re-tagging the IFLP template when Word isn't available.
 
+**Step 2 is not optional, and Word splits runs where you least expect.** The cover's two
+name cells were authored as `<w:t>C</w:t>` + `<w:t>lient 1</w:t>` — two runs with different
+properties — so they read as "Client 1" in Word and were missed by a find-and-replace for
+the whole word. They shipped untagged and the generated cover printed the literal labels
+where the clients' names belong. When tagging, search for a *fragment* of the sample text,
+not the whole string, and merge the runs before inserting the tag.
+
 ### Strip reviewer comments from the render target
 
 The source `FFLP Template 2026.docx` carries 65 Word review comments marking editable
@@ -58,6 +65,7 @@ wizard step feeds the payload.
 | --- | --- | --- |
 | `{coverClients}` (cover) | *already tagged* | coverClients (shared) |
 | `{client1Name}` / `{client2Name}` | *already tagged* | client1Name / client2Name (shared) |
+| `Client 1` / `Client 2` (cover name table) | `{client1Name}` / `{client2Name}` | client1Name / client2Name (shared) |
 | `{welcomeGreeting}` (CEO welcome) | *already tagged* | welcomeGreeting (shared) |
 | `MAY 2026` (cover + final page) | `{coverDate}` | coverDate (plan month + year, upper-cased) |
 | `60` (Profile · Retirement Age) | `{retirementAge}` | retirementAge (shared; the base plan's `targetIndependenceAge`) |
