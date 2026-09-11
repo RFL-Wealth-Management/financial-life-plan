@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pencil, RefreshCw } from "lucide-react";
+import { Pencil, RefreshCw, FileText } from "lucide-react";
 
 // Format a timestamp identically on the server and the client. Bare
 // toLocaleDateString() uses the runtime's locale + timezone, which differ
@@ -20,6 +20,9 @@ export interface PlanListItem {
   client2Name: string | null;
   createdAt: string;
   ownerId: string;
+  // Whether this plan already has an FFLP (a plan_fflp row exists). Drives the
+  // Create/Edit FFLP button label.
+  hasFflp: boolean;
 }
 
 /**
@@ -77,6 +80,15 @@ export function PlanList({
               <RefreshCw size={13} aria-hidden />
               Regenerate
             </a>
+            {/* The plan is a saved IFLP (it's in this list), so FFLP creation is
+                always available; the label switches once an FFLP exists. */}
+            <Link
+              href={`/reports/${plan.id}/fflp`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-1.5 font-medium text-foreground transition hover:bg-accent/10"
+            >
+              <FileText size={13} aria-hidden />
+              {plan.hasFflp ? "Edit FFLP" : "Create FFLP"}
+            </Link>
           </div>
         </li>
       ))}

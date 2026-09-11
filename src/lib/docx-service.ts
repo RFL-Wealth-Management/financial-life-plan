@@ -3,11 +3,12 @@ import PizZip from "pizzip";
 import fs from "fs";
 import path from "path";
 import type { IflpDocPayload } from "@/lib/iflp-form";
+import type { FflpDocPayload } from "@/lib/fflp-form";
 
 const TEMPLATE_PATH = path.join(
   process.cwd(),
   "templates",
-  "fflp-template.docx"
+  "fflp.tagged.docx"
 );
 
 // The hand-tagged duplicate (iflp-template.docx's highlighted placeholders
@@ -33,6 +34,10 @@ export function generateDocx(data: ClientInput, outputId: string): string {
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
+    // The shared template now carries tags this legacy 4-field flow doesn't
+    // supply (retirement age, salary, advisor, …); render them blank rather
+    // than throwing on the missing values.
+    nullGetter: () => "",
   });
 
   const client1Full = `${data.client1FirstName} ${data.client1LastName}`;
@@ -81,6 +86,33 @@ export function generateDocx(data: ClientInput, outputId: string): string {
  */
 export function generateIflpBuffer(payload: IflpDocPayload): Buffer {
   const templateContent = fs.readFileSync(IFLP_TEMPLATE_PATH, "binary");
+  const zip = new PizZip(templateContent);
+
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+    nullGetter: () => "",
+  });
+
+  doc.render(payload);
+
+  return doc.getZip().generate({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  });
+}
+
+/**
+ * Render the FFLP document from a flat tag payload and return it as a buffer.
+ *
+ * Mirrors generateIflpBuffer but targets the hand-tagged fflp.tagged.docx. The
+ * FFLP payload reuses the shared IFLP tags (client names, dates, advisor block)
+ * and adds FFLP-only ones — see buildFflpDocPayload in src/lib/fflp-form.ts and
+ * the tag map in docs/fflp-tagging.md. Untagged sections keep their static
+ * template copy; missing tag values render blank (nullGetter).
+ */
+export function generateFflpBuffer(payload: FflpDocPayload): Buffer {
+  const templateContent = fs.readFileSync(TEMPLATE_PATH, "binary");
   const zip = new PizZip(templateContent);
 
   const doc = new Docxtemplater(zip, {

@@ -56,6 +56,19 @@ export function CurrencyInput({
   );
   const [isFocused, setIsFocused] = useState(false);
 
+  // Keep the display in sync when the parent changes `value` from the outside
+  // (e.g. loading a saved plan, or the "Mock Data" button) — but never while the
+  // field is focused, so it doesn't fight the user mid-edit. Adjusting state
+  // during render (tracking the previous prop) is React's recommended
+  // alternative to a setState-in-effect: no extra commit, no cascading render.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (!isFocused) {
+      setDisplayValue(value != null ? format(value) : "");
+    }
+  }
+
   const handleFocus = useCallback(() => {
     setIsFocused(true);
     setDisplayValue(value != null ? value.toString() : "");
