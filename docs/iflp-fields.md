@@ -159,36 +159,49 @@ Four currency cells (`$0,000`, `$00,000`, `$00,800`, `$00,000`). Total is
 | CPP amount | `CurrencyInput` | |
 | OAS amount | `CurrencyInput` | |
 
-## 9. Registered & corporate accounts — **Table** ×5
+## 9. Accounts — **Add / remove**
 
-**TFSA**, **RRSP**, and **PPP** share one shape — one row per client, two
-currency columns:
+Accounts are **optional and repeatable**. The planner adds the ones a plan holds;
+an account that was never added has no rows and no page in the document. There is
+no separate "include this account" switch — adding *is* including.
 
-| Field | Input |
-| --- | --- |
-| Client | `SelectInput` |
-| Monthly Contribution | `CurrencyInput` |
-| Annual Contribution | `DerivedCurrency` — read-only, 12 × monthly |
-| Estimated value | `CurrencyInput` |
+The same kind can appear more than once (two clients each holding a TFSA, one
+client holding two at different institutions). The document's account tables were
+already docxtemplater loops, so extra rows print with no template change.
 
-**Contributions are entered monthly everywhere.** The annual figure is derived
-through `annualFromMonthly` in `iflp-form.ts` and is never typed or stored, so a
-monthly amount and its annual counterpart cannot drift apart. `plan_accounts`
-stores the monthly amount with `contribution_frequency = 'monthly'`; rows saved
-before this convention (frequency `'annual'`) are converted on read in
-`iflp-load.ts`.
-
-The document is unchanged by this: the TFSA/RRSP/PPP and Corporate Fixed tables
-still print a single **Annual Contribution** column, now fed by the derived
-value, and the Corporate Liquid table still prints its **monthly** figure.
-
-The two corporate buckets differ from those and from **each other** — worth
-noting so they don't get built as one reusable component by mistake:
-
-| Table | Columns | Rows |
+| Field | Input | Notes |
 | --- | --- | --- |
-| Corporate **Liquid** Bucket | Client, Monthly Contribution (+ derived annual in the wizard only), Estimated Value at Retirement | `MPC` only |
-| Corporate **Fixed** Bucket | Client, Monthly Contribution + derived Annual — **no Estimated Value** | `Client 1`, `Client 2` |
+| Client / Entity | `SelectInput` | Parties filtered by the kind's `holder` |
+| Monthly Contribution | `CurrencyInput` | The only contribution figure stored |
+| Annual Contribution | `DerivedCurrency` | Read-only, 12 × monthly |
+| Estimated Value | `CurrencyInput` | Only for kinds with `hasEstimatedValue` |
+| Annual Income in Retirement | `CurrencyInput` | Only for kinds with `hasRetirementIncome` |
+
+`ACCOUNT_KINDS` in `iflp-form.ts` is the single definition of what each kind looks
+like — who holds it, which fields it shows, and whether it counts toward Personal
+Savings. Adding a new account type is a row there plus an `account_type` enum
+value, not a new branch in five files.
+
+| Kind | Holder | Estimated value | Personal savings | Retirement income |
+| --- | --- | --- | --- | --- |
+| TFSA | Client | yes | yes | — |
+| RRSP | Client | yes | yes | — |
+| FHSA | Client | yes | yes | — |
+| Non-Registered | Client | yes | yes | — |
+| PPP | Client | yes | — | — |
+| Corporate Liquid Bucket | Corporation | "Estimated Value at Retirement" | — | yes |
+| Corporate Fixed Bucket | Client | **no** | — | — |
+
+### Personal Savings Summary — **Table**
+
+One row per personal account (monthly + derived annual) and a computed total.
+Renders only when at least one personal account has been added.
+
+### Corporate Fixed Bucket — What It Delivers
+
+Plan-level figures, not tied to a contribution, so they stay on
+`CorporateAccountsInput`: Annual Tax-Free Income, Contribution Period, Estate
+Value, Total Lifetime Value.
 
 ## 10. Education funding — **Table**
 

@@ -32,8 +32,12 @@ import {
   fundingBucketOptions,
 } from "@/lib/field-options";
 import {
+  ACCOUNT_KINDS,
   IFLP_STEPS,
   sourceHint,
+  annualFromMonthly,
+  emptyAccountRow,
+  partyName,
   initialIflpFormState,
   emptyChild,
   emptyOtherPriority,
@@ -41,9 +45,11 @@ import {
   emptyFundingRow,
   deriveClients,
   partyOptions,
-  annualFromMonthly,
+  type AccountKind,
+  type AccountRow,
   type IflpChild,
   type IflpClient,
+  type PartyKey,
   type OtherPriority,
   type IflpFormState,
   type IncomeStructure,
@@ -59,6 +65,7 @@ import { moneyOrDash } from "@/lib/format";
 import {
   bucketAnnualTotal,
   bucketMonthlyTotal,
+  personalSavingsMonthly,
   corporateFixedDelivers,
   corporateLiquidIncome,
   governmentDelivers,
@@ -714,9 +721,6 @@ function RetirementStep({
   const rb = state.retirementBuckets;
   const setRB = (u: Partial<RetirementBucketsInput>) =>
     patch({ retirementBuckets: { ...rb, ...u } });
-  const ms = state.monthlySavings;
-  const setMS = (u: Partial<IflpFormState["monthlySavings"]>) =>
-    patch({ monthlySavings: { ...ms, ...u } });
 
 
   // Every total below is computed in iflp-derive.ts, the same module the document
@@ -920,13 +924,11 @@ function RetirementStep({
       </CollapsibleSection>
 
       <CollapsibleSection title="Monthly Savings Allocation">
-        <CurrencyInput
+        <DerivedCurrency
           id="ms-personal"
           label="Personal Savings"
-          prefix="$"
-          value={ms.personal}
-          onChange={(personal) => setMS({ personal })}
-          placeholder="2,000"
+          value={personalSavingsMonthly(state)}
+          hint={sourceHint("accounts", "TFSA + RRSP + FHSA + Non-Registered")}
         />
         <DerivedCurrency
           id="ms-corp-liquid"
@@ -1039,20 +1041,9 @@ function RetirementStep({
   );
 }
 
-// Numeric per-client fields on IflpClient (used by the account tables below).
-type ClientMoneyField =
-  | "tfsaMonthlyContribution"
-  | "tfsaEstimatedValue"
-  | "rrspMonthlyContribution"
-  | "rrspEstimatedValue"
-  | "pppMonthlyContribution"
-  | "pppEstimatedValue"
-  | "corporateFixedMonthlyContribution";
-
 function AccountsStep({
   state,
   patch,
-  patchClient,
   updateChild,
 }: {
   state: IflpFormState;
@@ -1060,130 +1051,206 @@ function AccountsStep({
   patchClient: (k: "client1" | "client2", u: Partial<IflpClient>) => void;
   updateChild: (index: number, u: Partial<IflpChild>) => void;
 }) {
-  const clients = deriveClients(state);
-  const clientFor = (key: string) =>
-    key === "client1" ? state.client1 : state.client2;
   const ca = state.corporateAccounts;
   const setCA = (u: Partial<CorporateAccountsInput>) =>
     patch({ corporateAccounts: { ...ca, ...u } });
 
+  const accounts = state.accounts;
+  const setAccount = (index: number, u: Partial<AccountRow>) =>
+    patch({
+      accounts: accounts.map((a, i) => (i === index ? { ...a, ...u } : a)),
+    });
+  const removeAccount = (index: number) =>
+    patch({ accounts: accounts.filter((_, i) => i !== index) });
 
-  // One row per client: the monthly contribution is entered, the annual figure
-  // beside it is derived (× 12) and read-only, and an estimated value follows
-  // for the account types that have one.
-  const perClient = (
-    idPrefix: string,
-    monthlyField: ClientMoneyField,
-    estimatedValueField?: ClientMoneyField
-  ) =>
-    clients.length === 0 ? (
-      <p className="text-sm text-foreground/50">
-        Add a client in Step 1 to enter these amounts.
-      </p>
-    ) : (
-      clients.map((p) => {
-        const key = p.key as "client1" | "client2";
-        const c = clientFor(key);
-        return (
-          <div key={key} className="space-y-2">
-            <p className="text-xs font-medium text-foreground/70">{p.name}</p>
-            <div className="grid grid-cols-2 gap-3">
-              <CurrencyInput
-                id={`${idPrefix}-${key}-monthly`}
-                label="Monthly Contribution"
-                prefix="$"
-                value={c[monthlyField]}
-                onChange={(v) => patchClient(key, { [monthlyField]: v })}
-              />
-              <DerivedCurrency
-                id={`${idPrefix}-${key}-annual`}
-                label="Annual Contribution"
-                value={annualFromMonthly(c[monthlyField])}
-                hint="12 × monthly"
-              />
-              {estimatedValueField && (
-                <CurrencyInput
-                  id={`${idPrefix}-${key}-value`}
-                  label="Estimated Value"
-                  prefix="$"
-                  value={c[estimatedValueField]}
-                  onChange={(v) =>
-                    patchClient(key, { [estimatedValueField]: v })
-                  }
-                />
-              )}
-            </div>
-          </div>
-        );
-      })
+  // A new account defaults its party when there is only one candidate, so the
+  // common single-client / single-corporation case needs no extra click.
+  const addAccount = (kind: AccountKind) => {
+    const def = ACCOUNT_KINDS[kind];
+    const candidates = partyOptions(state, def.holder === "client");
+    const only = candidates.filter((o) =>
+      def.holder === "corporation" ? o.value === "corporation" : o.value !== "corporation"
     );
+    patch({
+      accounts: [
+        ...accounts,
+        { ...emptyAccountRow, kind, party: only.length === 1 ? only[0].value : "" },
+      ],
+    });
+  };
+
+  const addable = (Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((kind) => ({
+    kind,
+    label: ACCOUNT_KINDS[kind].label,
+  }));
 
   const namedChildren = state.children
     .map((child, index) => ({ child, index }))
     .filter(({ child }) => child.firstName.trim());
-  // sumOrNull's null-means-absent contract replaces the reduce + presence flag:
-  // an all-blank table yields null, so there is nothing to special-case.
   const educationCostTotal = educationTotal(state);
+
+  const personalRows = accounts
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => ACCOUNT_KINDS[a.kind].personalSavings);
 
   return (
     <div className="space-y-8">
-      <CollapsibleSection title="TFSA">
-        {perClient("tfsa", "tfsaMonthlyContribution", "tfsaEstimatedValue")}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="RRSP">
-        {perClient("rrsp", "rrspMonthlyContribution", "rrspEstimatedValue")}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Personal Pension Plan (PPP)">
-        {perClient("ppp", "pppMonthlyContribution", "pppEstimatedValue")}
-      </CollapsibleSection>
-
       <CollapsibleSection
-        title="Corporate Liquid Bucket"
-        hint="Rows against the corporation only."
+        title="Accounts"
+        hint="Add only the accounts this plan includes — each one gets its own page in the document."
       >
-        <p className="text-xs font-medium text-foreground/70">
-          {state.corporationName.trim() || "Corporation"}
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <CurrencyInput
-            id="corp-liquid-monthly"
-            label="Monthly Contribution"
-            prefix="$"
-            value={ca.liquidMonthlyContribution}
-            onChange={(v) => setCA({ liquidMonthlyContribution: v })}
-          />
-          <DerivedCurrency
-            id="corp-liquid-annual"
-            label="Annual Contribution"
-            value={annualFromMonthly(ca.liquidMonthlyContribution)}
-            hint="12 × monthly"
-          />
-          <CurrencyInput
-            id="corp-liquid-value"
-            label="Estimated Value at Retirement"
-            prefix="$"
-            value={ca.liquidEstimatedValue}
-            onChange={(v) => setCA({ liquidEstimatedValue: v })}
-          />
-          <CurrencyInput
-            id="corp-liquid-retirement-income"
-            label="Annual Income in Retirement"
-            prefix="$"
-            value={ca.liquidRetirementIncome}
-            onChange={(v) => setCA({ liquidRetirementIncome: v })}
-            placeholder="60,000"
-          />
+        {accounts.length === 0 ? (
+          <p className="text-sm text-foreground/50">
+            No accounts yet. Add the ones this plan covers.
+          </p>
+        ) : (
+          accounts.map((a, index) => {
+            const def = ACCOUNT_KINDS[a.kind];
+            const parties = partyOptions(state, def.holder === "client").filter((o) =>
+              def.holder === "corporation"
+                ? o.value === "corporation"
+                : o.value !== "corporation"
+            );
+            return (
+              <div
+                key={index}
+                className="space-y-3 rounded-lg border border-foreground/10 p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold text-foreground">
+                    {def.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAccount(index)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-foreground/60 hover:bg-foreground/5 hover:text-foreground"
+                  >
+                    <Trash2 size={13} aria-hidden />
+                    Remove
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <SelectInput
+                    id={`account-${index}-party`}
+                    label={def.holder === "corporation" ? "Entity" : "Client"}
+                    placeholder="Select…"
+                    options={parties}
+                    value={a.party}
+                    onChange={(party) => setAccount(index, { party })}
+                  />
+                  <div />
+                  <CurrencyInput
+                    id={`account-${index}-monthly`}
+                    label="Monthly Contribution"
+                    prefix="$"
+                    value={a.monthlyContribution}
+                    onChange={(monthlyContribution) =>
+                      setAccount(index, { monthlyContribution })
+                    }
+                  />
+                  <DerivedCurrency
+                    id={`account-${index}-annual`}
+                    label="Annual Contribution"
+                    value={annualFromMonthly(a.monthlyContribution)}
+                    hint="12 × monthly"
+                  />
+                  {def.hasEstimatedValue && (
+                    <CurrencyInput
+                      id={`account-${index}-value`}
+                      label={def.estimatedValueLabel ?? "Estimated Value"}
+                      prefix="$"
+                      value={a.estimatedValue}
+                      onChange={(estimatedValue) =>
+                        setAccount(index, { estimatedValue })
+                      }
+                    />
+                  )}
+                  {def.hasRetirementIncome && (
+                    <CurrencyInput
+                      id={`account-${index}-income`}
+                      label="Annual Income in Retirement"
+                      prefix="$"
+                      value={a.retirementIncome}
+                      onChange={(retirementIncome) =>
+                        setAccount(index, { retirementIncome })
+                      }
+                      placeholder="60,000"
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {addable.map(({ kind, label }) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => addAccount(kind)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10"
+            >
+              <Plus size={15} aria-hidden />
+              {label}
+            </button>
+          ))}
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Corporate Fixed Bucket">
-        <p className="text-xs font-medium text-foreground/60">Contributions</p>
-        {perClient("corpfixed", "corporateFixedMonthlyContribution")}
-        <p className="mt-2 text-xs font-medium text-foreground/60">
-          What it delivers
-        </p>
+      {personalRows.length > 0 && (
+        <CollapsibleSection
+          title="Personal Savings Summary"
+          hint="Every personal account added above, and what they total."
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-foreground/15 text-left text-xs font-medium uppercase tracking-wide text-foreground/50">
+                  <th className="pb-2 pr-3 font-medium">Account</th>
+                  <th className="pb-2 pr-3 text-right font-medium">Monthly</th>
+                  <th className="pb-2 text-right font-medium">Annual</th>
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {personalRows.map(({ a, index }) => (
+                  <tr key={index} className="border-b border-foreground/[0.07]">
+                    <td className="py-2 pr-3">
+                      {ACCOUNT_KINDS[a.kind].label}
+                      {a.party && (
+                        <span className="text-foreground/45">
+                          {" · "}
+                          {partyName(state, a.party as PartyKey)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-right">
+                      {moneyOrDash(a.monthlyContribution)}
+                    </td>
+                    <td className="py-2 text-right">
+                      {moneyOrDash(annualFromMonthly(a.monthlyContribution))}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="font-semibold">
+                  <td className="py-2 pr-3">Total Personal Savings</td>
+                  <td className="py-2 pr-3 text-right">
+                    {moneyOrDash(personalSavingsMonthly(state))}
+                  </td>
+                  <td className="py-2 text-right">
+                    {moneyOrDash(annualFromMonthly(personalSavingsMonthly(state)))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      <CollapsibleSection
+        title="Corporate Fixed Bucket — What It Delivers"
+        hint="Plan-level figures, not tied to one contribution."
+      >
         <div className="grid grid-cols-2 gap-3">
           <CurrencyInput
             id="corp-fixed-tfi"

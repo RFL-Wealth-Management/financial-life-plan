@@ -10,11 +10,13 @@
 //   - plan_children has no age column, so a child's age comes back null.
 
 import {
+  ACCOUNT_KINDS,
   defaultPlanOptions,
   initialIflpFormState,
   MONTHS_PER_YEAR,
   type IflpFormState,
   type IflpClient,
+  type AccountKind,
   type PartyKey,
   type PlanOptions,
 } from "@/lib/iflp-form";
@@ -148,11 +150,10 @@ export async function loadPlanState(
   rb.corpLiquidMonthly = num(buckets[2], "contribution");
   rb.corpFixedMonthly = num(buckets[3], "contribution");
 
-  // --- Monthly savings (fixed order: personal, corpLiquid, corpFixed) --------
-  const savings = bySort((plan.plan_monthly_savings as AnyRow[]) ?? []);
-  state.monthlySavings.personal = num(savings[0], "amount");
-  // savings[1] / savings[2] mirror the corporate account contributions and are
-  // likewise derived, not restored.
+  // --- Monthly savings -------------------------------------------------------
+  // Nothing is restored from plan_monthly_savings any more: all three rows are
+  // derived from the accounts that feed them (comments 10, 11 and 12), so the
+  // stored rows are a snapshot of what the document printed, not an input.
 
   // --- Income alignment + government benefits (per client) -------------------
   for (const r of (plan.plan_income_alignment as AnyRow[]) ?? []) {
@@ -188,30 +189,20 @@ export async function loadPlanState(
       : amount;
   };
 
-  for (const r of (plan.plan_accounts as AnyRow[]) ?? []) {
-    const type = r.account_type as string;
-    const contribution = monthlyContribution(r);
-    const estimated = (r.estimated_value as number) ?? null;
-    if (type === "corporate_liquid") {
-      state.corporateAccounts.liquidMonthlyContribution = contribution;
-      state.corporateAccounts.liquidEstimatedValue = estimated;
-      continue;
-    }
-    const c = clientFor(keyOf(r.party_id));
-    if (!c) continue;
-    if (type === "tfsa") {
-      c.tfsaMonthlyContribution = contribution;
-      c.tfsaEstimatedValue = estimated;
-    } else if (type === "rrsp") {
-      c.rrspMonthlyContribution = contribution;
-      c.rrspEstimatedValue = estimated;
-    } else if (type === "ppp") {
-      c.pppMonthlyContribution = contribution;
-      c.pppEstimatedValue = estimated;
-    } else if (type === "corporate_fixed") {
-      c.corporateFixedMonthlyContribution = contribution;
-    }
-  }
+  // One form row per stored row, in saved order. A row whose account_type this
+  // build doesn't know (a newer enum value against older code) is skipped rather
+  // than guessed at.
+  state.accounts = bySort((plan.plan_accounts as AnyRow[]) ?? [])
+    .filter((r) => (r.account_type as AccountKind) in ACCOUNT_KINDS)
+    .map((r) => ({
+      kind: r.account_type as AccountKind,
+      party: keyOf(r.party_id) ?? "",
+      monthlyContribution: monthlyContribution(r),
+      estimatedValue: (r.estimated_value as number) ?? null,
+      // Filled in from plan_retirement_income below — plan_accounts has no column
+      // for it.
+      retirementIncome: null,
+    }));
 
   // --- Insurance -------------------------------------------------------------
   for (const r of (plan.plan_insurance as AnyRow[]) ?? []) {
@@ -295,9 +286,18 @@ export async function loadPlanState(
     } else if (source === "personal_pension") {
       inc.personalPension = cell;
     } else if (source === "corporate_liquid") {
-      // The annual income is entered in the account section (comment 8), so it
-      // loads back there; only the estate value belongs to this table.
-      state.corporateAccounts.liquidRetirementIncome = cell.annualIncome;
+      // The annual income is entered on the Corporate Liquid account card, so it
+      // loads back onto the account rather than into this table; only the estate
+      // value belongs here.
+      //
+      // plan_retirement_income stores one corporate_liquid row holding the total
+      // across every such account, so with the usual single account this is
+      // exact. With more than one the total lands on the first card and the rest
+      // show blank — every derived figure still totals correctly, since they sum
+      // the cards. Give plan_accounts its own retirement_income column if
+      // multi-account corporate liquid ever becomes real.
+      const liquid = state.accounts.find((a) => a.kind === "corporate_liquid");
+      if (liquid) liquid.retirementIncome = cell.annualIncome;
       inc.corporateLiquid = { estateValue: cell.estateValue };
     } else if (source === "corporate_fixed") {
       inc.corporateFixed = cell;

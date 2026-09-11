@@ -21,10 +21,12 @@ import {
   governmentDelivers,
   monthlySavingsCorpFixed,
   monthlySavingsCorpLiquid,
+  personalSavingsMonthly,
   retirementIncomeTotal,
 } from "@/lib/iflp-derive";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ACCOUNT_KINDS,
   clientRecords,
   deriveClients,
   type IflpClient,
@@ -196,9 +198,8 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
   ].map((r, i) => ({ ...r, sort_order: i }));
 
   // plan_monthly_savings — three labelled fixed rows.
-  const ms = state.monthlySavings;
   const monthly_savings: Row[] = [
-    { label: "Personal Savings", amount: ms.personal },
+    { label: "Personal Savings", amount: personalSavingsMonthly(state) },
     { label: "Corporate Liquid Bucket", amount: monthlySavingsCorpLiquid(state) },
     { label: "Corporate Fixed Bucket", amount: monthlySavingsCorpFixed(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
@@ -221,58 +222,30 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     sort_order: i,
   }));
 
-  // plan_accounts — registered + corporate accounts fold into one table,
-  // distinguished by account_type. Every contribution is stored MONTHLY
-  // (contribution_frequency = 'monthly'); the annual figures the document prints
-  // are derived at render time, so there is one stored number per account and no
-  // way for a monthly and an annual amount to disagree. TFSA/RRSP/PPP/
-  // Corporate-Fixed are per client; the Corporate Liquid bucket rows against the
-  // corporation only.
-  const accounts: Row[] = [
-    ...perClient((c, key, i) => ({
-      account_type: "tfsa",
-      party_id: partyId(key),
-      contribution: c.tfsaMonthlyContribution,
+  // plan_accounts — one row per account the planner added, which is exactly the
+  // shape of state.accounts. This used to fan four fixed fields per client out
+  // into rows and reassemble them on load; now it is a straight map, and the
+  // table's variable length is finally used for what it was built for.
+  //
+  // Every contribution is stored MONTHLY (contribution_frequency = 'monthly');
+  // the annual figures the document prints are derived at render time, so there
+  // is one stored number per account and no way for the two to disagree.
+  //
+  // An account whose party is unset or no longer named is dropped rather than
+  // written with a null party_id: the document resolves the name from the party,
+  // so a row without one could never render.
+  const accounts: Row[] = state.accounts
+    .filter((a) => idByKey.has(a.party as PartyKey))
+    .map((a, i) => ({
+      account_type: a.kind,
+      party_id: partyId(a.party as PartyKey),
+      contribution: a.monthlyContribution,
       contribution_frequency: "monthly",
-      estimated_value: c.tfsaEstimatedValue,
+      estimated_value: ACCOUNT_KINDS[a.kind].hasEstimatedValue
+        ? a.estimatedValue
+        : null,
       sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "rrsp",
-      party_id: partyId(key),
-      contribution: c.rrspMonthlyContribution,
-      contribution_frequency: "monthly",
-      estimated_value: c.rrspEstimatedValue,
-      sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "ppp",
-      party_id: partyId(key),
-      contribution: c.pppMonthlyContribution,
-      contribution_frequency: "monthly",
-      estimated_value: c.pppEstimatedValue,
-      sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "corporate_fixed",
-      party_id: partyId(key),
-      contribution: c.corporateFixedMonthlyContribution,
-      contribution_frequency: "monthly",
-      estimated_value: null,
-      sort_order: i,
-    })),
-  ];
-  if (idByKey.has("corporation")) {
-    const ca = state.corporateAccounts;
-    accounts.push({
-      account_type: "corporate_liquid",
-      party_id: partyId("corporation"),
-      contribution: ca.liquidMonthlyContribution,
-      contribution_frequency: "monthly",
-      estimated_value: ca.liquidEstimatedValue,
-      sort_order: 0,
-    });
-  }
+    }));
 
   // plan_insurance — Term Life / Critical Illness / Disability per client. Each
   // carries the amount plus the type-specific modifier (term / product / term).

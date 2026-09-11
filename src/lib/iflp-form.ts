@@ -11,11 +11,16 @@ import {
   moneyOrBlank as formatCurrency,
   perYearOrBlank as formatPerYear,
   formatYears,
+  sumOrNull,
 } from "@/lib/format";
 import {
+  accountsOfKind,
   corporateFixedDelivers,
   corporateLiquidIncome,
   educationTotal,
+  hasAccount,
+  monthlyForKind,
+  personalSavingsMonthly,
   governmentBenefitsTotal,
   governmentDelivers,
   monthlySavingsCorpFixed,
@@ -46,19 +51,6 @@ export interface IflpClient {
   // whichever one they draw, so only the chosen structure is ever filled.
   incomeStructure: IncomeStructure;
   incomeAlignmentAmount: number | null;
-  // Step 4 — registered accounts (contribution + projected value, per client).
-  // Contributions are entered and stored MONTHLY; the annual figure the document
-  // prints is derived (× 12) by annualFromMonthly, never entered or stored, so
-  // the two can't drift apart.
-  tfsaMonthlyContribution: number | null;
-  tfsaEstimatedValue: number | null;
-  rrspMonthlyContribution: number | null;
-  rrspEstimatedValue: number | null;
-  pppMonthlyContribution: number | null;
-  pppEstimatedValue: number | null;
-  // Step 4 — Corporate Fixed Bucket contribution, per client (monthly; the
-  // document's annual column is derived).
-  corporateFixedMonthlyContribution: number | null;
   // Step 5 — Insurance, per client. Each is an amount plus a modifier (the term
   // length / product / benefit term chosen from a dropdown).
   termLifeCoverage: number | null;
@@ -82,16 +74,6 @@ export interface RetirementBucketsInput {
   personalAnnual: number | null;
   corpLiquidMonthly: number | null;
   corpFixedMonthly: number | null;
-}
-
-// Step 3 — Monthly Savings Allocation. Three fixed rows; total is computed.
-//
-// The two corporate rows are derived from their account contributions (comments
-// 11 and 12), so only Personal Savings is typed — and that becomes a sum of the
-// personal accounts once FHSA and Non-Registered exist (comments 6 and 10), at
-// which point this interface goes away entirely.
-export interface MonthlySavingsInput {
-  personal: number | null;
 }
 
 // Step 2 — Projected Access To Capital. Fixed year rows (2/4/6/8/10); only the
@@ -131,16 +113,6 @@ export interface RetirementIncomeInput {
 // Liquid Bucket rows against the corporation only (MPC), and the Corporate Fixed
 // Bucket's "delivers" metrics are single figures for the whole plan.
 export interface CorporateAccountsInput {
-  // Monthly, like every other account contribution. The document's Corporate
-  // Liquid table prints the monthly figure (not an annual one), so this feeds
-  // {corpLiquidMonthly} directly; the wizard still shows the derived annual.
-  liquidMonthlyContribution: number | null;
-  liquidEstimatedValue: number | null;
-  // What the bucket pays out per year in retirement. Entered here, in the account
-  // section, rather than in the Projected Annual Retirement Income table (comment
-  // 8) — that table's Corporate Liquid row and the Retirement Buckets "delivers"
-  // cell both read it from here, so the figure is typed once.
-  liquidRetirementIncome: number | null;
   fixedAnnualTaxFreeIncome: number | null;
   fixedContributionPeriodYears: number | null;
   fixedEstateValue: number | null;
@@ -156,15 +128,12 @@ export interface CorporateAccountsInput {
 // as one plans.options jsonb value, and because "the switches" is a thing the
 // planner reasons about as a set.
 //
-// Accounts default to included: a plan that has always had a TFSA page should
-// keep it without the planner opting in, and an absent key in a stored blob
-// therefore reads as `true`. Pension is the exception — it is new, and a plan
-// that never mentioned one should not gain a pension page on load.
+// Accounts are not listed here: an account appears in the plan because it was
+// added (see AccountRow), so presence IS inclusion and a second switch could only
+// contradict it. Pension is a bucket rather than an account, so it keeps a
+// switch — defaulting off, since a plan that never mentioned one should not gain
+// a pension page on load.
 export interface PlanOptions {
-  includeTfsa: boolean;
-  includeRrsp: boolean;
-  includeFhsa: boolean;
-  includeNonRegistered: boolean;
   includePension: boolean;
   // Which pension page to generate. "" until a type is chosen; only meaningful
   // when includePension is true. Keep in sync with pensionTypeOptions.
@@ -175,12 +144,95 @@ export interface PlanOptions {
 export type PensionType = "" | "ppp" | "other_pension" | "defined_benefit";
 
 export const defaultPlanOptions: PlanOptions = {
-  includeTfsa: true,
-  includeRrsp: true,
-  includeFhsa: true,
-  includeNonRegistered: true,
   includePension: false,
   pensionType: "",
+};
+
+// Which accounts a plan holds. An account exists in the plan because the planner
+// added it — there is no separate "include this account" switch, and an account
+// that was never added simply has no page in the document.
+//
+// Keep in sync with the account_type enum (20260717000000 + 20260911000000).
+export type AccountKind =
+  | "tfsa"
+  | "rrsp"
+  | "fhsa"
+  | "non_registered"
+  | "ppp"
+  | "corporate_liquid"
+  | "corporate_fixed";
+
+// One account the planner added. `party` is a PartyKey ("" until chosen); the
+// same kind can appear more than once — two clients each holding a TFSA, or one
+// client holding two at different institutions — and the document's account
+// tables are already loops, so extra rows print without any template change.
+//
+// Contributions are entered and stored MONTHLY; the annual figure the document
+// prints is derived (× 12) through annualFromMonthly, so the two cannot drift.
+export interface AccountRow {
+  kind: AccountKind;
+  party: string;
+  monthlyContribution: number | null;
+  // Only rendered for kinds whose definition sets hasEstimatedValue.
+  estimatedValue: number | null;
+  // Only rendered for kinds whose definition sets hasRetirementIncome.
+  retirementIncome: number | null;
+}
+
+// What each kind of account looks like: who holds it, and which fields it shows.
+// This drives the Add form, the party picker, and how the payload groups rows —
+// so a new account type is a row here plus an enum value, rather than a new
+// branch in five files.
+export interface AccountKindDef {
+  label: string;
+  /** Whose account it is — decides which parties the picker offers. */
+  holder: "client" | "corporation";
+  /** Personal savings accounts feed the Personal Savings bucket and its total. */
+  personalSavings?: boolean;
+  hasEstimatedValue: boolean;
+  estimatedValueLabel?: string;
+  /** Projected annual income the account pays out in retirement. */
+  hasRetirementIncome?: boolean;
+}
+
+export const ACCOUNT_KINDS: Record<AccountKind, AccountKindDef> = {
+  tfsa: { label: "TFSA", holder: "client", personalSavings: true, hasEstimatedValue: true },
+  rrsp: { label: "RRSP", holder: "client", personalSavings: true, hasEstimatedValue: true },
+  // TODO(RFL): confirm — assumed to match TFSA/RRSP (client-held, projected value).
+  fhsa: { label: "FHSA", holder: "client", personalSavings: true, hasEstimatedValue: true },
+  non_registered: {
+    label: "Non-Registered Account",
+    holder: "client",
+    personalSavings: true,
+    hasEstimatedValue: true,
+  },
+  ppp: { label: "Personal Pension Plan (PPP)", holder: "client", hasEstimatedValue: true },
+  corporate_liquid: {
+    label: "Corporate Liquid Bucket",
+    holder: "corporation",
+    hasEstimatedValue: true,
+    estimatedValueLabel: "Estimated Value at Retirement",
+    hasRetirementIncome: true,
+  },
+  // The only kind with no projected value; its "what it delivers" figures are
+  // plan-level and live on CorporateAccountsInput.
+  corporate_fixed: { label: "Corporate Fixed Bucket", holder: "client", hasEstimatedValue: false },
+};
+
+/** The account kinds that make up the Personal Savings bucket, in document order. */
+export const PERSONAL_SAVINGS_KINDS: AccountKind[] = [
+  "tfsa",
+  "rrsp",
+  "fhsa",
+  "non_registered",
+];
+
+export const emptyAccountRow: AccountRow = {
+  kind: "tfsa",
+  party: "",
+  monthlyContribution: null,
+  estimatedValue: null,
+  retirementIncome: null,
 };
 
 // A priority the option list doesn't cover, entered by the planner. The
@@ -244,9 +296,9 @@ export interface IflpFormState {
   retirementIncome: RetirementIncomeInput;
   // Step 3 — fixed-row tables (per-client tables read off client1/client2).
   retirementBuckets: RetirementBucketsInput;
-  monthlySavings: MonthlySavingsInput;
-  // Step 4 — corporate account figures (per-client account figures live on the
-  // clients; per-child education figures live on the children).
+  // The accounts this plan holds, in the order the planner added them.
+  accounts: AccountRow[];
+  // Corporate Fixed Bucket "what it delivers" — plan-level, not per account.
   corporateAccounts: CorporateAccountsInput;
   // Which optional sections this plan includes (see PlanOptions).
   planOptions: PlanOptions;
@@ -272,13 +324,6 @@ export const emptyClient: IflpClient = {
   oasAmount: null,
   incomeStructure: "salary",
   incomeAlignmentAmount: null,
-  tfsaMonthlyContribution: null,
-  tfsaEstimatedValue: null,
-  rrspMonthlyContribution: null,
-  rrspEstimatedValue: null,
-  pppMonthlyContribution: null,
-  pppEstimatedValue: null,
-  corporateFixedMonthlyContribution: null,
   termLifeCoverage: null,
   termLifeTerm: "30 Years",
   criticalIllnessCoverage: null,
@@ -333,11 +378,8 @@ export const initialIflpFormState: IflpFormState = {
     corpLiquidMonthly: null,
     corpFixedMonthly: null,
   },
-  monthlySavings: { personal: null },
+  accounts: [],
   corporateAccounts: {
-    liquidMonthlyContribution: null,
-    liquidEstimatedValue: null,
-    liquidRetirementIncome: null,
     fixedAnnualTaxFreeIncome: null,
     fixedContributionPeriodYears: null,
     fixedEstateValue: null,
@@ -514,7 +556,7 @@ export interface IncomeAlignmentRow {
 
 // One rendered row of a registered-account table (TFSA/RRSP/PPP): a client name,
 // a contribution, and a projected value.
-export interface AccountRow {
+export interface RenderedAccountRow {
   name: string;
   contribution: string;
   estimatedValue: string;
@@ -638,9 +680,22 @@ export interface IflpDocPayload {
   monthlySavingsTotal: string;
   // Step 4 — Accounts & Education.
   // TFSA / RRSP / PPP: one row per client (loops).
-  tfsa: AccountRow[];
-  rrsp: AccountRow[];
-  ppp: AccountRow[];
+  tfsa: RenderedAccountRow[];
+  rrsp: RenderedAccountRow[];
+  ppp: RenderedAccountRow[];
+  fhsa: RenderedAccountRow[];
+  nonRegistered: RenderedAccountRow[];
+  corporateLiquid: RenderedAccountRow[];
+  // Whether the plan holds each kind of account. These gate the account pages in
+  // the template ({#hasTfsa} … {/hasTfsa}); an account that was never added has
+  // no rows, so its page drops out.
+  hasTfsa: boolean;
+  hasRrsp: boolean;
+  hasPpp: boolean;
+  hasFhsa: boolean;
+  hasNonRegistered: boolean;
+  hasCorporateLiquid: boolean;
+  hasCorporateFixed: boolean;
   // Corporate Liquid Bucket: MPC only, so single (non-loop) figures. The name
   // cell reuses {corporationName}.
   corpLiquidMonthly: string;
@@ -791,20 +846,19 @@ export function annualFromMonthly(monthly: number | null): number | null {
   return monthly == null ? null : monthly * MONTHS_PER_YEAR;
 }
 
-// A registered-account table (TFSA/RRSP/PPP) as one row per client, reading the
-// given contribution/value fields off each client. `monthlyContribution` names a
-// MONTHLY field; the table's "Annual Contribution" column is derived from it.
+// One rendered row per account of a kind, in the order the planner added them.
+// The table's "Annual Contribution" column is derived from the stored monthly
+// figure, and the name cell resolves the account's party key to a display name.
+// A kind with no accounts yields an empty array, so its table — and, wrapped in
+// the matching {#hasX} section, its whole page — drops out of the document.
 function accountRows(
   state: IflpFormState,
-  monthlyContribution: keyof IflpClient,
-  estimatedValue: keyof IflpClient
-): AccountRow[] {
-  return clientRecords(state).map((c) => ({
-    name: fullName(c),
-    contribution: formatCurrency(
-      annualFromMonthly(c[monthlyContribution] as number | null)
-    ),
-    estimatedValue: formatCurrency(c[estimatedValue] as number | null),
+  kind: AccountKind
+): RenderedAccountRow[] {
+  return accountsOfKind(state, kind).map((a) => ({
+    name: partyName(state, a.party as PartyKey),
+    contribution: formatCurrency(annualFromMonthly(a.monthlyContribution)),
+    estimatedValue: formatCurrency(a.estimatedValue),
   }));
 }
 
@@ -956,7 +1010,6 @@ export function buildIflpDocPayload(
   const govBenefits = buildGovernmentBenefits(state);
 
   const rb = state.retirementBuckets;
-  const ms = state.monthlySavings;
   const ca = state.corporateAccounts;
   const ri = state.retirementIncome;
   const incomeAlignment = buildIncomeAlignment(state);
@@ -986,11 +1039,9 @@ export function buildIflpDocPayload(
     years: formatYears(c.educationYearsAway),
   }));
 
-  const corporateFixed = clientRecords(state).map((c) => ({
-    name: fullName(c),
-    contribution: formatCurrency(
-      annualFromMonthly(c.corporateFixedMonthlyContribution)
-    ),
+  const corporateFixed = accountsOfKind(state, "corporate_fixed").map((a) => ({
+    name: partyName(state, a.party as PartyKey),
+    contribution: formatCurrency(annualFromMonthly(a.monthlyContribution)),
   }));
 
   const methodLabel = (v: string): string =>
@@ -1054,15 +1105,34 @@ export function buildIflpDocPayload(
     bucketCorpFixedAnnual: formatPerYear(corporateFixedDelivers(state)),
     bucketMonthlyTotal: formatCurrency(bucketMonthlyTotal(state)),
     bucketAnnualTotal: formatPerYear(bucketAnnualTotal(state)),
-    monthlySavingsPersonal: formatCurrency(ms.personal),
+    monthlySavingsPersonal: formatCurrency(personalSavingsMonthly(state)),
     monthlySavingsCorpLiquid: formatCurrency(monthlySavingsCorpLiquid(state)),
     monthlySavingsCorpFixed: formatCurrency(monthlySavingsCorpFixed(state)),
     monthlySavingsTotal: formatCurrency(monthlySavingsTotal(state)),
-    tfsa: accountRows(state, "tfsaMonthlyContribution", "tfsaEstimatedValue"),
-    rrsp: accountRows(state, "rrspMonthlyContribution", "rrspEstimatedValue"),
-    ppp: accountRows(state, "pppMonthlyContribution", "pppEstimatedValue"),
-    corpLiquidMonthly: formatCurrency(ca.liquidMonthlyContribution),
-    corpLiquidEstimatedValue: formatCurrency(ca.liquidEstimatedValue),
+    tfsa: accountRows(state, "tfsa"),
+    rrsp: accountRows(state, "rrsp"),
+    ppp: accountRows(state, "ppp"),
+    fhsa: accountRows(state, "fhsa"),
+    nonRegistered: accountRows(state, "non_registered"),
+    corporateLiquid: accountRows(state, "corporate_liquid"),
+    // The Corporate Liquid table is still a single row in the template rather
+    // than a loop, so these keep feeding it; they total every corporate liquid
+    // account, which is identical to the old behaviour for the usual single one.
+    corpLiquidMonthly: formatCurrency(monthlyForKind(state, "corporate_liquid")),
+    corpLiquidEstimatedValue: formatCurrency(
+      sumOrNull(
+        accountsOfKind(state, "corporate_liquid").map((a) => a.estimatedValue)
+      )
+    ),
+    // Whether each account's page belongs in the document. Adding an account is
+    // what includes it, so these are simply "does the plan hold one".
+    hasTfsa: hasAccount(state, "tfsa"),
+    hasRrsp: hasAccount(state, "rrsp"),
+    hasPpp: hasAccount(state, "ppp"),
+    hasFhsa: hasAccount(state, "fhsa"),
+    hasNonRegistered: hasAccount(state, "non_registered"),
+    hasCorporateLiquid: hasAccount(state, "corporate_liquid"),
+    hasCorporateFixed: hasAccount(state, "corporate_fixed"),
     corporateFixed,
     fixedAnnualTaxFreeIncome: formatCurrency(ca.fixedAnnualTaxFreeIncome),
     fixedContributionPeriod: formatYears(ca.fixedContributionPeriodYears),

@@ -7,18 +7,19 @@
 // disagree. Every selector here returns `number | null`; the caller formats it —
 // `moneyOrDash` for the wizard, `moneyOrBlank` for the document.
 //
-// RULE: this module imports from `iflp-form.ts` with `import type` ONLY, so the
-// dependency is erased at compile time and the two modules can reference each
-// other freely. If you ever need a runtime value from `iflp-form.ts` here, move
-// that value into this module or into `format.ts` instead — do not add a runtime
-// import, or you create a real cycle.
+// RULE: keep runtime imports from `iflp-form.ts` to plain data only — constants
+// like PERSONAL_SAVINGS_KINDS, never functions that read back into this module.
+// The cycle is real but harmless while it stays one-directional at runtime; the
+// moment a selector here is called from module scope in `iflp-form.ts`, it breaks.
+// Everything else comes across as `import type`, which is erased at compile time.
 //
 // `null` means "no figure entered", and propagates: a total of all-null inputs
 // is null, not 0, so blank tables read as blank rather than as a plan with zero
 // dollars in it.
 
 import { sumOrNull } from "@/lib/format";
-import type { IflpClient, IflpFormState } from "@/lib/iflp-form";
+import { PERSONAL_SAVINGS_KINDS } from "@/lib/iflp-form";
+import type { AccountKind, AccountRow, IflpClient, IflpFormState } from "@/lib/iflp-form";
 
 /** The Projected Annual Retirement Income rows that exist once per client. */
 type PerClientIncomeKey = "cppOas1" | "cppOas2" | "tfsa1" | "tfsa2";
@@ -37,6 +38,45 @@ function hasClient(c: IflpClient): boolean {
 /** The named clients, client 1 first. Same inclusion rule as `deriveClients`. */
 export function namedClients(state: IflpFormState): IflpClient[] {
   return [state.client1, state.client2].filter(hasClient);
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
+/** Every account of a given kind, in the order the planner added them. */
+export function accountsOfKind(
+  state: IflpFormState,
+  kind: AccountKind
+): AccountRow[] {
+  return state.accounts.filter((a) => a.kind === kind);
+}
+
+/** Whether the plan holds at least one account of this kind — i.e. whether its
+ *  page belongs in the document. Adding an account is what includes it. */
+export function hasAccount(state: IflpFormState, kind: AccountKind): boolean {
+  return state.accounts.some((a) => a.kind === kind);
+}
+
+/** Total monthly contribution across every account of a kind. */
+export function monthlyForKind(
+  state: IflpFormState,
+  kind: AccountKind
+): number | null {
+  return sumOrNull(accountsOfKind(state, kind).map((a) => a.monthlyContribution));
+}
+
+/**
+ * Monthly savings directed at the personal accounts — TFSA, RRSP, FHSA and
+ * Non-Registered added together. Only accounts the planner actually added count,
+ * which is what makes the Monthly Savings Allocation follow inclusion.
+ */
+export function personalSavingsMonthly(state: IflpFormState): number | null {
+  return sumOrNull(
+    state.accounts
+      .filter((a) => PERSONAL_SAVINGS_KINDS.includes(a.kind))
+      .map((a) => a.monthlyContribution)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -111,9 +151,7 @@ export function bucketAnnualTotal(state: IflpFormState): number | null {
  * both clients' contributions land in one bucket row and one savings allocation.
  */
 export function corporateFixedMonthly(state: IflpFormState): number | null {
-  return sumOrNull(
-    namedClients(state).map((c) => c.corporateFixedMonthlyContribution)
-  );
+  return monthlyForKind(state, "corporate_fixed");
 }
 
 /**
@@ -139,28 +177,28 @@ export function corporateFixedDelivers(state: IflpFormState): number | null {
  * Buckets "delivers" cell and the Projected Annual Retirement Income row.
  */
 export function corporateLiquidIncome(state: IflpFormState): number | null {
-  return state.corporateAccounts.liquidRetirementIncome;
+  return sumOrNull(
+    accountsOfKind(state, "corporate_liquid").map((a) => a.retirementIncome)
+  );
 }
 
 /** Monthly Savings Allocation — total across the three categories. */
 export function monthlySavingsTotal(state: IflpFormState): number | null {
   return sumOrNull([
-    state.monthlySavings.personal,
+    personalSavingsMonthly(state),
     monthlySavingsCorpLiquid(state),
     monthlySavingsCorpFixed(state),
   ]);
 }
 
 /**
- * Monthly Savings Allocation rows that mirror an account contribution. The
- * allocation table and the account sections were both typed by hand and could
- * disagree; these two now read straight from the account.
- *
- * `personal` is still typed — it becomes the sum of the personal savings
- * accounts once FHSA and Non-Registered exist (comments 6 and 10).
+ * Monthly Savings Allocation — every row now mirrors the accounts that feed it,
+ * so the allocation table cannot disagree with the account sections. Personal
+ * Savings is the sum of the four personal accounts (comment 10); the two
+ * corporate rows read their account directly (comments 11 and 12).
  */
 export function monthlySavingsCorpLiquid(state: IflpFormState): number | null {
-  return state.corporateAccounts.liquidMonthlyContribution;
+  return monthlyForKind(state, "corporate_liquid");
 }
 
 export function monthlySavingsCorpFixed(state: IflpFormState): number | null {
