@@ -59,14 +59,13 @@ export const fundingKindOptions: FieldOption[] = [
   { label: "Monthly", value: "monthly" },
 ];
 
-// Income frequency for the "What Success Looks Like" income figures. Not a DB
-// enum — the value is composed into the free-text success string that persists
-// (e.g. "$1,200,000 annually"), so the option `value` is the exact adverb that
-// renders in the document. Default is "annually".
-export const incomeFrequencyOptions: FieldOption[] = [
-  { label: "Bi-weekly", value: "bi-weekly" },
-  { label: "Monthly", value: "monthly" },
-  { label: "Annually", value: "annually" },
+// Pension Bucket type, chosen when the bucket is included. Not a DB enum — it
+// persists inside the plans.options jsonb blob, and it selects which pension page
+// the document generates. Keep in sync with the PensionType union in iflp-form.ts.
+export const pensionTypeOptions: FieldOption[] = [
+  { label: "PPP — Personal Pension Plan", value: "ppp" },
+  { label: "Other Pension Plan (IPP / Medicus)", value: "other_pension" },
+  { label: "Defined Benefit Pension Plan", value: "defined_benefit" },
 ];
 
 // The "Your Priorities" TagInput list. Suggested set from the template

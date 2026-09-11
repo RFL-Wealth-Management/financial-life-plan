@@ -10,26 +10,17 @@
 //   - plan_children has no age column, so a child's age comes back null.
 
 import {
+  ACCOUNT_KINDS,
+  defaultPlanOptions,
   initialIflpFormState,
+  MONTHS_PER_YEAR,
   type IflpFormState,
   type IflpClient,
-  type IncomeFrequency,
+  type AccountKind,
   type PartyKey,
+  type PlanOptions,
 } from "@/lib/iflp-form";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// "$1,200,000 annually" -> { amount: 1200000, frequency: "annually" }. Anything
-// unparseable (incl. null/"") yields a blank amount at the default frequency.
-function parseIncome(s: string | null): {
-  amount: number | null;
-  frequency: IncomeFrequency;
-} {
-  if (!s) return { amount: null, frequency: "annually" };
-  const m = s.match(/\$?([\d,]+)\s*(bi-weekly|monthly|annually)?/i);
-  const amount = m?.[1] ? Number(m[1].replace(/,/g, "")) : null;
-  const frequency = (m?.[2]?.toLowerCase() as IncomeFrequency) || "annually";
-  return { amount: Number.isFinite(amount as number) ? amount : null, frequency };
-}
 
 const PLAN_SELECT = `
   *,
@@ -81,14 +72,18 @@ export async function loadPlanState(
   state.priorities = (plan.priorities as string[]) ?? [];
   state.targetIndependenceAge = (plan.target_independence_age as number) ?? null;
 
-  const ri = parseIncome(plan.success_retirement_income as string | null);
-  state.retirementIncomeAmount = ri.amount;
-  state.retirementIncomeFrequency = ri.frequency;
-  const pi = parseIncome(plan.success_passive_income as string | null);
-  state.passiveIncomeAmount = pi.amount;
-  state.passiveIncomeFrequency = pi.frequency;
-  state.successLiquidCapital = (plan.success_liquid_capital as string) ?? "";
-  state.successNetWorth = (plan.success_net_worth as string) ?? "";
+  // plans.success_* are deliberately NOT read back. They are a snapshot of what
+  // the document printed; the form recomputes all four from their source fields
+  // (retirement income total, Corporate Fixed figures, Access to Capital year 10),
+  // so reading the stored strings could only reintroduce a stale value.
+
+  // Inclusion switches. A key absent from the blob falls back to the app default,
+  // so plans saved before plans.options existed load with every account included
+  // and no pension — which is what those plans' documents already contained.
+  state.planOptions = {
+    ...defaultPlanOptions,
+    ...((plan.options as Partial<PlanOptions>) ?? {}),
+  };
 
   state.corporateAccounts.fixedAnnualTaxFreeIncome =
     (plan.corp_fixed_annual_tax_free_income as number) ?? null;
@@ -147,19 +142,18 @@ export async function loadPlanState(
   const buckets = bySort((plan.plan_retirement_buckets as AnyRow[]) ?? []);
   const rb = state.retirementBuckets;
   const num = (r: AnyRow | undefined, k: string) => (r?.[k] as number) ?? null;
-  rb.governmentAnnual = num(buckets[0], "annual_value");
+  // buckets[0] (Government) and buckets[3].annual_value (Corporate Fixed) hold
+  // derived figures — a snapshot of what the document printed. Recomputed from
+  // their sources on every render, so they are not read back here.
   rb.personalMonthly = num(buckets[1], "contribution");
   rb.personalAnnual = num(buckets[1], "annual_value");
   rb.corpLiquidMonthly = num(buckets[2], "contribution");
-  rb.corpLiquidAnnual = num(buckets[2], "annual_value");
   rb.corpFixedMonthly = num(buckets[3], "contribution");
-  rb.corpFixedAnnual = num(buckets[3], "annual_value");
 
-  // --- Monthly savings (fixed order: personal, corpLiquid, corpFixed) --------
-  const savings = bySort((plan.plan_monthly_savings as AnyRow[]) ?? []);
-  state.monthlySavings.personal = num(savings[0], "amount");
-  state.monthlySavings.corpLiquid = num(savings[1], "amount");
-  state.monthlySavings.corpFixed = num(savings[2], "amount");
+  // --- Monthly savings -------------------------------------------------------
+  // Nothing is restored from plan_monthly_savings any more: all three rows are
+  // derived from the accounts that feed them (comments 10, 11 and 12), so the
+  // stored rows are a snapshot of what the document printed, not an input.
 
   // --- Income alignment + government benefits (per client) -------------------
   for (const r of (plan.plan_income_alignment as AnyRow[]) ?? []) {
@@ -179,30 +173,36 @@ export async function loadPlanState(
   }
 
   // --- Accounts --------------------------------------------------------------
-  for (const r of (plan.plan_accounts as AnyRow[]) ?? []) {
-    const type = r.account_type as string;
-    const contribution = (r.contribution as number) ?? null;
-    const estimated = (r.estimated_value as number) ?? null;
-    if (type === "corporate_liquid") {
-      state.corporateAccounts.liquidMonthlyContribution = contribution;
-      state.corporateAccounts.liquidEstimatedValue = estimated;
-      continue;
-    }
-    const c = clientFor(keyOf(r.party_id));
-    if (!c) continue;
-    if (type === "tfsa") {
-      c.tfsaContribution = contribution;
-      c.tfsaEstimatedValue = estimated;
-    } else if (type === "rrsp") {
-      c.rrspContribution = contribution;
-      c.rrspEstimatedValue = estimated;
-    } else if (type === "ppp") {
-      c.pppContribution = contribution;
-      c.pppEstimatedValue = estimated;
-    } else if (type === "corporate_fixed") {
-      c.corporateFixedContribution = contribution;
-    }
-  }
+  // Contributions are stored monthly. Plans saved before that convention wrote an
+  // annual figure with contribution_frequency = 'annual', so those are converted
+  // on read and old plans open with a sensible monthly amount.
+  //
+  // TODO(RFL): confirm the rounding. A $7,000 annual TFSA becomes $583/month,
+  // which re-derives to $6,996 — a $4 drift on plans saved before this change.
+  // See the note in the summary; alternatives are rounding up, or leaving legacy
+  // plans' annual figure untouched.
+  const monthlyContribution = (r: AnyRow): number | null => {
+    const amount = (r.contribution as number) ?? null;
+    if (amount == null) return null;
+    return r.contribution_frequency === "annual"
+      ? Math.round(amount / MONTHS_PER_YEAR)
+      : amount;
+  };
+
+  // One form row per stored row, in saved order. A row whose account_type this
+  // build doesn't know (a newer enum value against older code) is skipped rather
+  // than guessed at.
+  state.accounts = bySort((plan.plan_accounts as AnyRow[]) ?? [])
+    .filter((r) => (r.account_type as AccountKind) in ACCOUNT_KINDS)
+    .map((r) => ({
+      kind: r.account_type as AccountKind,
+      party: keyOf(r.party_id) ?? "",
+      monthlyContribution: monthlyContribution(r),
+      estimatedValue: (r.estimated_value as number) ?? null,
+      // Filled in from plan_retirement_income below — plan_accounts has no column
+      // for it.
+      retirementIncome: null,
+    }));
 
   // --- Insurance -------------------------------------------------------------
   for (const r of (plan.plan_insurance as AnyRow[]) ?? []) {
@@ -286,7 +286,19 @@ export async function loadPlanState(
     } else if (source === "personal_pension") {
       inc.personalPension = cell;
     } else if (source === "corporate_liquid") {
-      inc.corporateLiquid = cell;
+      // The annual income is entered on the Corporate Liquid account card, so it
+      // loads back onto the account rather than into this table; only the estate
+      // value belongs here.
+      //
+      // plan_retirement_income stores one corporate_liquid row holding the total
+      // across every such account, so with the usual single account this is
+      // exact. With more than one the total lands on the first card and the rest
+      // show blank — every derived figure still totals correctly, since they sum
+      // the cards. Give plan_accounts its own retirement_income column if
+      // multi-account corporate liquid ever becomes real.
+      const liquid = state.accounts.find((a) => a.kind === "corporate_liquid");
+      if (liquid) liquid.retirementIncome = cell.annualIncome;
+      inc.corporateLiquid = { estateValue: cell.estateValue };
     } else if (source === "corporate_fixed") {
       inc.corporateFixed = cell;
     }

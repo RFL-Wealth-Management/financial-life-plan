@@ -79,15 +79,28 @@ full name with age (`Emma Chen (10), Liam Chen (7)`).
 
 ## 4. What Success Looks Like
 
-All four are free text, not currency — the template writes `$0.0M+ available`
-and `$00.0M+`, which are prose. `types.ts` already types them as `string`.
+**Nothing here is entered.** All four figures are derived from later steps, so the
+section is read-only — the planner fills steps 3 and 4 and this table fills
+itself. The template's fifth row, `Education Funding | Fully funded`, is fixed
+copy with no tag.
 
-| Field | Placeholder | Input |
+| Row (template label) | Source | Payload key |
 | --- | --- | --- |
-| Retirement income | `$0,000,000 annually` | `TextInput` |
-| Passive income | `$000,000 annually` | `TextInput` |
-| Liquid capital | `$0.0M+ available` | `TextInput` |
-| Net worth | `$00.0M+` | `TextInput` |
+| Retirement Income | Step 3 · Projected Annual Retirement Income total | `successRetirementIncome` |
+| Tax-Free Income | Step 4 · Corporate Fixed Bucket → Annual Tax-Free Income | `successPassiveIncome` |
+| Access To Capital | Projected Access to Capital → Year 10 | `successLiquidCapital` |
+| Estate Value | Step 4 · Corporate Fixed Bucket → Estate Value | `successNetWorth` |
+
+The payload keys keep their legacy names (`successPassiveIncome`,
+`successLiquidCapital`, `successNetWorth`) because they are the `{tags}` already
+typed into `iflp.tagged.docx` — renaming them would mean re-tagging the template
+by hand for no gain. The row labels above are what the document actually says.
+
+These used to be planner-entered: the top two as an amount plus a frequency
+adverb ("$1,200,000 annually"), the bottom two as free-text prose ("$5.0M+
+available", "$20.0M+"). Deriving them means they now render as exact currency.
+`plans.success_*` still stores the rendered strings, but only as a snapshot of
+what a given document printed — nothing reads them back.
 
 ### Projected Access to Capital — **Table**
 
@@ -146,24 +159,49 @@ Four currency cells (`$0,000`, `$00,000`, `$00,800`, `$00,000`). Total is
 | CPP amount | `CurrencyInput` | |
 | OAS amount | `CurrencyInput` | |
 
-## 9. Registered & corporate accounts — **Table** ×5
+## 9. Accounts — **Add / remove**
 
-**TFSA**, **RRSP**, and **PPP** share one shape — one row per client, two
-currency columns:
+Accounts are **optional and repeatable**. The planner adds the ones a plan holds;
+an account that was never added has no rows and no page in the document. There is
+no separate "include this account" switch — adding *is* including.
 
-| Field | Input |
-| --- | --- |
-| Client | `SelectInput` |
-| Contribution | `CurrencyInput` |
-| Estimated value | `CurrencyInput` |
+The same kind can appear more than once (two clients each holding a TFSA, one
+client holding two at different institutions). The document's account tables were
+already docxtemplater loops, so extra rows print with no template change.
 
-The two corporate buckets differ from those and from **each other** — worth
-noting so they don't get built as one reusable component by mistake:
-
-| Table | Columns | Rows |
+| Field | Input | Notes |
 | --- | --- | --- |
-| Corporate **Liquid** Bucket | Client, Monthly Contribution, Estimated Value at Retirement | `MPC` only |
-| Corporate **Fixed** Bucket | Client, Annual Contribution — **no Estimated Value** | `Client 1`, `Client 2` |
+| Client / Entity | `SelectInput` | Parties filtered by the kind's `holder` |
+| Monthly Contribution | `CurrencyInput` | The only contribution figure stored |
+| Annual Contribution | `DerivedCurrency` | Read-only, 12 × monthly |
+| Estimated Value | `CurrencyInput` | Only for kinds with `hasEstimatedValue` |
+| Annual Income in Retirement | `CurrencyInput` | Only for kinds with `hasRetirementIncome` |
+
+`ACCOUNT_KINDS` in `iflp-form.ts` is the single definition of what each kind looks
+like — who holds it, which fields it shows, and whether it counts toward Personal
+Savings. Adding a new account type is a row there plus an `account_type` enum
+value, not a new branch in five files.
+
+| Kind | Holder | Estimated value | Personal savings | Retirement income |
+| --- | --- | --- | --- | --- |
+| TFSA | Client | yes | yes | — |
+| RRSP | Client | yes | yes | — |
+| FHSA | Client | yes | yes | — |
+| Non-Registered | Client | yes | yes | — |
+| PPP | Client | yes | — | — |
+| Corporate Liquid Bucket | Corporation | "Estimated Value at Retirement" | — | yes |
+| Corporate Fixed Bucket | Client | **no** | — | — |
+
+### Personal Savings Summary — **Table**
+
+One row per personal account (monthly + derived annual) and a computed total.
+Renders only when at least one personal account has been added.
+
+### Corporate Fixed Bucket — What It Delivers
+
+Plan-level figures, not tied to a contribution, so they stay on
+`CorporateAccountsInput`: Annual Tax-Free Income, Contribution Period, Estate
+Value, Total Lifetime Value.
 
 ## 10. Education funding — **Table**
 

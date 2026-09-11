@@ -6,3 +6,5 @@ export { SelectInput } from "./SelectInput";
 export { TagInput } from "./TagInput";
 export { SectionHeading } from "./SectionHeading";
 export { CollapsibleSection } from "./CollapsibleSection";
+export { DerivedCurrency } from "./DerivedCurrency";
+export { ToggleInput } from "./ToggleInput";

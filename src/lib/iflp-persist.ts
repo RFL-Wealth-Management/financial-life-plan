@@ -14,11 +14,21 @@
 // the plan's owner to auth.uid() and returns the new plan id.
 
 import { randomUUID } from "node:crypto";
+import { moneyOrBlank } from "@/lib/format";
+import {
+  corporateFixedDelivers,
+  corporateLiquidIncome,
+  governmentDelivers,
+  monthlySavingsCorpFixed,
+  monthlySavingsCorpLiquid,
+  personalSavingsMonthly,
+  retirementIncomeTotal,
+} from "@/lib/iflp-derive";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  ACCOUNT_KINDS,
   clientRecords,
   deriveClients,
-  formatIncome,
   type IflpClient,
   type IflpFormState,
   type PartyKey,
@@ -67,18 +77,25 @@ function buildPlan(state: IflpFormState): Row {
     household_income: state.householdIncome,
     priorities: state.priorities,
     target_independence_age: state.targetIndependenceAge,
-    // Success figures persist as the composed strings the document renders
-    // (e.g. "$1,200,000 annually"); the plain-text ones store verbatim.
-    success_retirement_income:
-      formatIncome(state.retirementIncomeAmount, state.retirementIncomeFrequency) || null,
+    // "What Success Looks Like" is derived, not entered, so these columns are now
+    // a snapshot rather than an input: they record the figures this plan's
+    // document actually printed. Nothing reads them back — loadPlanState
+    // recomputes from the source fields — but keeping them written means a saved
+    // plan still says what was sent to the client.
+    success_retirement_income: moneyOrBlank(retirementIncomeTotal(state)) || null,
     success_passive_income:
-      formatIncome(state.passiveIncomeAmount, state.passiveIncomeFrequency) || null,
-    success_liquid_capital: trimOrNull(state.successLiquidCapital),
-    success_net_worth: trimOrNull(state.successNetWorth),
+      moneyOrBlank(state.corporateAccounts.fixedAnnualTaxFreeIncome) || null,
+    success_liquid_capital: moneyOrBlank(state.accessToCapital.year10) || null,
+    success_net_worth: moneyOrBlank(state.corporateAccounts.fixedEstateValue) || null,
     corp_fixed_annual_tax_free_income: state.corporateAccounts.fixedAnnualTaxFreeIncome,
     corp_fixed_contribution_period_years: state.corporateAccounts.fixedContributionPeriodYears,
     corp_fixed_estate_value: state.corporateAccounts.fixedEstateValue,
     corp_fixed_total_lifetime_value: state.corporateAccounts.fixedTotalLifetimeValue,
+    // Document inclusion switches, stored whole. Writing every key (rather than
+    // only the non-default ones) means a stored plan records what the planner
+    // actually chose, so a later change to defaultPlanOptions can't silently
+    // re-include a section the planner had turned off.
+    options: { ...state.planOptions },
   };
 }
 
@@ -168,20 +185,23 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     }));
 
   // plan_retirement_buckets — four fixed rows (Government has no contribution).
+  // The Government and Corporate Fixed annual values are derived (comments 5 and
+  // 9), so they are computed here rather than read off retirementBuckets: the
+  // stored row then matches what the document printed. Load recomputes them, for
+  // the same reason it recomputes plans.success_*.
   const rb = state.retirementBuckets;
   const retirement_buckets: Row[] = [
-    { contribution: null, annual_value: rb.governmentAnnual },
+    { contribution: null, annual_value: governmentDelivers(state) },
     { contribution: rb.personalMonthly, annual_value: rb.personalAnnual },
-    { contribution: rb.corpLiquidMonthly, annual_value: rb.corpLiquidAnnual },
-    { contribution: rb.corpFixedMonthly, annual_value: rb.corpFixedAnnual },
+    { contribution: rb.corpLiquidMonthly, annual_value: corporateLiquidIncome(state) },
+    { contribution: rb.corpFixedMonthly, annual_value: corporateFixedDelivers(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
   // plan_monthly_savings — three labelled fixed rows.
-  const ms = state.monthlySavings;
   const monthly_savings: Row[] = [
-    { label: "Personal Savings", amount: ms.personal },
-    { label: "Corporate Liquid Bucket", amount: ms.corpLiquid },
-    { label: "Corporate Fixed Bucket", amount: ms.corpFixed },
+    { label: "Personal Savings", amount: personalSavingsMonthly(state) },
+    { label: "Corporate Liquid Bucket", amount: monthlySavingsCorpLiquid(state) },
+    { label: "Corporate Fixed Bucket", amount: monthlySavingsCorpFixed(state) },
   ].map((r, i) => ({ ...r, sort_order: i }));
 
   // plan_income_alignment — one row per client. `amount` is whichever structure
@@ -202,55 +222,30 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
     sort_order: i,
   }));
 
-  // plan_accounts — registered + corporate accounts fold into one table,
-  // distinguished by account_type. TFSA/RRSP/PPP/Corporate-Fixed contributions
-  // are annual and per client; the Corporate Liquid bucket is monthly and rows
-  // against the corporation only.
-  const accounts: Row[] = [
-    ...perClient((c, key, i) => ({
-      account_type: "tfsa",
-      party_id: partyId(key),
-      contribution: c.tfsaContribution,
-      contribution_frequency: "annual",
-      estimated_value: c.tfsaEstimatedValue,
-      sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "rrsp",
-      party_id: partyId(key),
-      contribution: c.rrspContribution,
-      contribution_frequency: "annual",
-      estimated_value: c.rrspEstimatedValue,
-      sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "ppp",
-      party_id: partyId(key),
-      contribution: c.pppContribution,
-      contribution_frequency: "annual",
-      estimated_value: c.pppEstimatedValue,
-      sort_order: i,
-    })),
-    ...perClient((c, key, i) => ({
-      account_type: "corporate_fixed",
-      party_id: partyId(key),
-      contribution: c.corporateFixedContribution,
-      contribution_frequency: "annual",
-      estimated_value: null,
-      sort_order: i,
-    })),
-  ];
-  if (idByKey.has("corporation")) {
-    const ca = state.corporateAccounts;
-    accounts.push({
-      account_type: "corporate_liquid",
-      party_id: partyId("corporation"),
-      contribution: ca.liquidMonthlyContribution,
+  // plan_accounts — one row per account the planner added, which is exactly the
+  // shape of state.accounts. This used to fan four fixed fields per client out
+  // into rows and reassemble them on load; now it is a straight map, and the
+  // table's variable length is finally used for what it was built for.
+  //
+  // Every contribution is stored MONTHLY (contribution_frequency = 'monthly');
+  // the annual figures the document prints are derived at render time, so there
+  // is one stored number per account and no way for the two to disagree.
+  //
+  // An account whose party is unset or no longer named is dropped rather than
+  // written with a null party_id: the document resolves the name from the party,
+  // so a row without one could never render.
+  const accounts: Row[] = state.accounts
+    .filter((a) => idByKey.has(a.party as PartyKey))
+    .map((a, i) => ({
+      account_type: a.kind,
+      party_id: partyId(a.party as PartyKey),
+      contribution: a.monthlyContribution,
       contribution_frequency: "monthly",
-      estimated_value: ca.liquidEstimatedValue,
-      sort_order: 0,
-    });
-  }
+      estimated_value: ACCOUNT_KINDS[a.kind].hasEstimatedValue
+        ? a.estimatedValue
+        : null,
+      sort_order: i,
+    }));
 
   // plan_insurance — Term Life / Critical Illness / Disability per client. Each
   // carries the amount plus the type-specific modifier (term / product / term).
@@ -353,16 +348,18 @@ function buildPlanPayload(state: IflpFormState): PlanPayload {
       sort_order: riOrder++,
     });
   });
+  // Corporate Liquid's annual income is entered in the account section, so it is
+  // read from there rather than off `ri` — the row it writes is unchanged.
   ([
-    ["personal_pension", ri.personalPension],
-    ["corporate_liquid", ri.corporateLiquid],
-    ["corporate_fixed", ri.corporateFixed],
-  ] as const).forEach(([source, src]) => {
+    ["personal_pension", ri.personalPension.annualIncome, ri.personalPension.estateValue],
+    ["corporate_liquid", corporateLiquidIncome(state), ri.corporateLiquid.estateValue],
+    ["corporate_fixed", ri.corporateFixed.annualIncome, ri.corporateFixed.estateValue],
+  ] as const).forEach(([source, annualIncome, estateValue]) => {
     retirement_income.push({
       source,
       party_id: null,
-      annual_income: src.annualIncome,
-      estate_value: src.estateValue,
+      annual_income: annualIncome,
+      estate_value: estateValue,
       sort_order: riOrder++,
     });
   });
